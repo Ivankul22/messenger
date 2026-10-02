@@ -6,19 +6,19 @@
   <title>Messenger</title>
   <style>
     :root {
-      --bg: #eef1f8; --panel: #ffffff; --text: #1c2230; --muted: #667085; --line: #e4e7ef;
-      --input: #f8f9fc; --input-border: #d5dae6; --bubble: #ffffff; --mine: #e7e9ff;
-      --dock: #f4f6fb; --messages: #f6f7fb; --accent: #5b6cff; --accent-2: #4453e6; --danger: #d4536a;
+      --bg: #f2f4f7; --panel: #fff; --text: #222; --muted: #666; --line: #ddd;
+      --input: #fff; --input-border: #ccc; --bubble: #fff; --mine: #e8eaff;
+      --dock: #f7f7fb; --messages: #f7f7f7; --accent: #5865f2; --accent-2: #4752c4; --danger: #d33;
     }
     html[data-theme="dark"] {
-      --bg: #0c0e14; --panel: #1a1d27; --text: #f4f6fb; --muted: #a7adbd; --line: #2a3040;
-      --input: #12151d; --input-border: #343b4e; --bubble: #222633; --mine: #3a4270;
-      --dock: #12151c; --messages: #10131a; --accent: #8b97ff; --accent-2: #6f7cf0; --danger: #ff8d9a;
+      --bg: #11131a; --panel: #1b1e27; --text: #f2f3f5; --muted: #b5b8c5; --line: #2c3140;
+      --input: #12141b; --input-border: #3a4054; --bubble: #262a36; --mine: #343c6e;
+      --dock: #151821; --messages: #12141b; --accent: #7b86ff; --accent-2: #6670e6; --danger: #ff8b8b;
     }
     * { box-sizing: border-box; }
     body { margin: 0; min-height: 100vh; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
     .app { width: 100%; max-width: 900px; height: 100vh; margin: 0 auto; background: var(--panel); display: flex; flex-direction: column; }
-    header { position: relative; padding: 18px 20px; background: linear-gradient(90deg, #4453e6, #7a6cff); color: #fff; text-align: center; }
+    header { position: relative; padding: 18px 20px; background: var(--accent); color: #fff; text-align: center; }
     header h2 { margin: 0; }
     #themeButton { position: absolute; top: 14px; left: 14px; background: rgba(255,255,255,.2); }
     #accountBar { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -36,8 +36,8 @@
     button { padding: 13px 20px; margin: 8px 4px; border: 0; border-radius: 9px; background: var(--accent); color: #fff; font-size: 16px; cursor: pointer; }
     button:hover { background: var(--accent-2); }
     button:disabled { opacity: .5; cursor: not-allowed; }
-    .secondary { background: #5c6478; }
-    .danger { background: #c44b63; }
+    .secondary { background: #777; }
+    .danger { background: #a33; }
     .hidden { display: none !important; }
     .error { color: var(--danger); margin: 12px; min-height: 20px; }
     .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
@@ -61,10 +61,11 @@
     .vc-actions { display: flex; flex-direction: column; gap: 6px; }
     .vc-actions button { margin: 0; width: 100%; }
     #voiceBar { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
-    .voice-tile { width: 100%; background: var(--panel); color: var(--text); border-radius: 10px; overflow: hidden; text-align: left; font-size: 12px; cursor: pointer; border: 1px solid var(--line); }
-    .voice-tile video { width: 100%; height: 120px; object-fit: cover; background: #0c0e14; display: block; }
+    .voice-tile { width: 100%; background: #1a1d27; color: #fff; border-radius: 10px; overflow: hidden; text-align: left; font-size: 12px; cursor: pointer; border: 1px solid #2c3140; }
+    .voice-tile video { width: 100%; height: 120px; object-fit: cover; background: #000; display: block; }
+    .voice-tile .label { padding: 6px 8px; }
     .voice-tile .who { display: flex; align-items: center; gap: 8px; padding: 8px; }
-    .voice-tile .icon { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; flex: none; }
+    .voice-tile .icon { width: 36px; height: 36px; border-radius: 50%; background: #5865f2; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; flex: none; }
     .voice-tile .icon img { width: 100%; height: 100%; object-fit: cover; }
     #vcMembers { font-size: 12px; color: var(--muted); }
     .mention { color: var(--accent); font-weight: bold; background: var(--mine); border-radius: 4px; padding: 0 3px; }
@@ -82,6 +83,7 @@
     #stage { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 6; display: flex; align-items: center; justify-content: center; }
     #stage video { width: min(100%, 1100px); max-height: 100%; background: #000; }
     #stage button { position: absolute; top: 16px; right: 16px; }
+    #messages { flex: 1; overflow-y: auto; padding: 20px; background: var(--messages); }
     #messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; background: var(--messages); }
     .message { background: var(--bubble); color: var(--text); padding: 10px 14px; margin-bottom: 10px; border-radius: 10px; max-width: 75%; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow-wrap: anywhere; }
     .message.mine { margin-left: auto; background: var(--mine); }
@@ -184,8 +186,6 @@
     <div id="adminBox" class="hidden">
       <h2>Admin</h2>
       <button id="ghostButton" type="button" onclick="toggleGhost()">Invisible mode: off</button>
-      <button class="secondary" type="button" onclick="toggleUsers()">All users</button>
-      <div id="allUsers" class="hidden"></div>
       <p class="lede">Every room created on this site. Invisible mode lets you open them and join calls without appearing.</p>
       <p id="ghostHint" class="lede hidden">Invisible mode is on. Every created room is listed with how many people have opened it.</p>
       <div id="allRooms"></div>
@@ -343,7 +343,6 @@
   function voiceKey(code) { return KEY_PREFIX + "v" + code; }
   function roomKey(code) { return KEY_PREFIX + "r" + code; }
   function usersKey() { return KEY_PREFIX + "users"; }
-  function directoryKey() { return KEY_PREFIX + "dir"; }
   function voteKey(id) { return KEY_PREFIX + "b" + id; }
   function isAdmin() { return !!(currentUser && currentUser.email === ADMIN_EMAIL); }
   let ghostMode = false;
@@ -354,23 +353,11 @@
   function messageKey(code, id) { return KEY_PREFIX + "m" + code + id; }
 
   async function getValue(key) {
-  async function getOne(key) {
     const res = await fetch(`${API}/get/${encodeURIComponent(key)}`);
     if (!res.ok) throw new Error("Could not reach the shared store.");
     const data = await res.json();
     if (!data || data.status === "-KEY-DOESNT-EXISTS-") return "";
     return data.val == null ? "" : String(data.val);
-  }
-  async function getValue(key) {
-    const first = await getOne(key);
-    if (!first) return "";
-    let out = first;
-    for (let i = 1; i < 4; i++) {
-      const extra = await getOne(key + "p" + i);
-      if (!extra) break;
-      out += extra;
-    }
-    return out;
   }
   async function setValue(key, value) {
     const safe = encodeURIComponent(String(value)).slice(0, 260);
@@ -378,24 +365,6 @@
     if (!res.ok) throw new Error("Could not save.");
     const data = await res.json().catch(() => ({}));
     if (data.status && data.status !== "SUCCESS") throw new Error("Could not save.");
-    const text = String(value);
-    const parts = [];
-    for (let i = 0; i < text.length; i += 70) parts.push(text.slice(i, i + 70));
-    if (!parts.length) parts.push("-");
-    if (parts.length > 4) throw new Error("That is too large to save.");
-    for (let i = 0; i < 4; i++) {
-      const part = parts[i];
-      if (part == null) {
-        if (i === 0) continue;
-        await fetch(`${API}/set/${encodeURIComponent(key + "p" + i)}/-`);
-        continue;
-      }
-      const safe = encodeURIComponent(part);
-      const res = await fetch(`${API}/set/${encodeURIComponent(i === 0 ? key : key + "p" + i)}/${safe}`);
-      if (!res.ok) throw new Error("Could not save.");
-      const data = await res.json().catch(() => ({}));
-      if (data.status && data.status !== "SUCCESS") throw new Error("Could not save.");
-    }
   }
   let pendingUser = null;
   function namesKey() { return KEY_PREFIX + "names"; }
@@ -566,7 +535,6 @@
         errorEl.textContent = "Verify your email before logging in. Use Resend code if you need a new one.";
         return;
       }
-      await rememberUser(existing);
       setAccount(existing);
       const theme = await getValue(themeKey(id));
       if (theme === "dark" || theme === "light") applyTheme(theme);
@@ -619,7 +587,6 @@
     await setValue(userKey(pendingUser.id), packUser(pendingUser));
     await setValue(profileKey(pendingUser.id), packProfile({ name: pendingUser.name, status: "online", color: "5865f2", custom: "", about: "" }));
     await setValue(usersKey(), String(pendingUser.rank));
-    await rememberUser(pendingUser);
     setAccount(pendingUser);
     pendingUser = null;
     document.getElementById("verifyForm").classList.add("hidden");
@@ -642,52 +609,6 @@
     const item = code + ":" + encodeURIComponent(name.slice(0, 16));
     if (!rooms.some((entry) => entry.startsWith(code + ":"))) rooms.push(item);
     await setValue(allKey(), rooms.slice(-24).join(","));
-  }
-  async function rememberUser(user) {
-    const raw = await getValue(directoryKey());
-    const rows = raw && raw !== "-" ? raw.split("|").filter(Boolean) : [];
-    const item = [user.id, user.name.replace(/[|~]/g, ""), user.email].join("~");
-    const next = rows.filter((row) => !row.startsWith(user.id + "~"));
-    next.push(item);
-    await setValue(directoryKey(), next.slice(-40).join("|"));
-  }
-  async function toggleUsers() {
-    const list = document.getElementById("allUsers");
-    list.classList.toggle("hidden");
-    if (list.classList.contains("hidden")) return;
-    await rememberUser(currentUser);
-    const raw = await getValue(directoryKey());
-    const banned = (await getValue(bansKey())).split(",");
-    list.innerHTML = "";
-    const rows = raw && raw !== "-" ? raw.split("|").filter(Boolean) : [];
-    if (!rows.length) { list.textContent = "No users registered yet."; return; }
-    for (const row of rows) {
-      const [id, name, email] = row.split("~");
-      const wrap = document.createElement("div");
-      wrap.className = "room-row";
-      const open = document.createElement("button");
-      open.type = "button";
-      open.className = "room-open";
-      open.textContent = (name || "User") + (email ? " · " + email : "") + (banned.includes(id) ? " · banned" : "");
-      open.onclick = () => openProfile(id);
-      const ban = document.createElement("button");
-      ban.type = "button";
-      ban.className = "room-delete";
-      ban.textContent = banned.includes(id) ? "Unban" : "Ban";
-      ban.onclick = () => setBan(id, !banned.includes(id));
-      wrap.appendChild(open);
-      wrap.appendChild(ban);
-      list.appendChild(wrap);
-    }
-  }
-  async function setBan(id, banned) {
-    if (!isAdmin() || id === currentUser.id) return;
-    const raw = await getValue(bansKey());
-    let ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
-    ids = banned ? [...new Set([...ids, id])] : ids.filter((item) => item !== id);
-    await setValue(bansKey(), ids.join(",") || "-");
-    document.getElementById("allUsers").classList.add("hidden");
-    await toggleUsers();
   }
   async function renderAdmin() {
     const box = document.getElementById("adminBox");
@@ -1035,6 +956,7 @@
       who.appendChild(icon);
       who.appendChild(name);
       tile.appendChild(video);
+      tile.appendChild(name);
       tile.appendChild(who);
       bar.appendChild(tile);
       const uid = isLocal ? currentUser.id : String(id).slice(-12);

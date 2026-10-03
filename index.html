@@ -137,6 +137,11 @@
     .about { color: var(--muted); margin: 8px 0; white-space: pre-wrap; }
     .support-note { text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px auto; max-width: 420px; background: var(--dock); }
     .support-note .time { display: block; margin: 2px 0 6px; }
+    .user-card { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px auto; max-width: 420px; background: var(--dock); }
+    .user-top { display: flex; align-items: center; gap: 8px; }
+    .user-top strong { flex: 1; }
+    .presence { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+    .user-meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
     @media (max-width: 600px) {
       .message { max-width: 88%; }
       #accountBar, #themeButton { position: static; }
@@ -153,11 +158,15 @@
     <h2>Messenger</h2>
     <div id="accountBar" class="hidden">
       <button id="accountName" class="small" type="button" onclick="openOwnProfile()">Account</button>
-      <button class="small" type="button" onclick="openSupport()">Support</button>
       <button class="small" type="button" onclick="logout()">Log out</button>
     </div>
     <div id="roomTitle" class="hidden"></div>
   </header>
+  <div id="appTabs" class="tabs hidden">
+    <button type="button" id="homeTab" class="active" onclick="showHome()">Home</button>
+    <button type="button" id="usersTab" class="hidden" onclick="showUsers()">Users</button>
+    <button type="button" id="supportTab" onclick="showSupport()">Support</button>
+  </div>
 
   <div id="auth" class="screen">
     <h1 id="authTitle">Log in</h1>
@@ -187,7 +196,6 @@
     <br>
     <button type="button" onclick="createRoom()">Create Room</button>
     <button type="button" onclick="showJoin()">Join with Code</button>
-    <button class="secondary" type="button" onclick="openSupport()">Support</button>
     <div id="homeError" class="error"></div>
     <p id="userCount" class="lede">Registered users: …</p>
     <div id="adminBox" class="hidden">
@@ -196,7 +204,25 @@
       <p class="lede">Every room created on this site. Invisible mode lets you open them and join calls without appearing.</p>
       <p id="ghostHint" class="lede hidden">Invisible mode is on. Every created room is listed with how many people have opened it.</p>
       <div id="allRooms"></div>
-      <h3>Support inbox</h3>
+    </div>
+  </div>
+
+  <div id="usersScreen" class="screen hidden">
+    <h1>Users</h1>
+    <p class="lede">Every account, with who is online right now.</p>
+    <div id="userList"></div>
+  </div>
+
+  <div id="supportScreen" class="screen hidden">
+    <h1>Support</h1>
+    <p class="lede">Write to the admin. This stays on the page.</p>
+    <form onsubmit="sendSupport(event)">
+      <textarea id="supportText" maxlength="100" placeholder="Write your message"></textarea>
+      <div id="supportError" class="error"></div>
+      <button type="submit">Send</button>
+    </form>
+    <div id="supportInboxWrap" class="hidden">
+      <h2>Inbox</h2>
       <div id="supportInbox"></div>
     </div>
   </div>
@@ -295,20 +321,6 @@
 </div>
 
 <div id="stage" class="hidden"><video id="stageVideo" autoplay playsinline></video><button type="button" onclick="closeStage()">Close</button></div>
-<div id="supportModal" class="modal hidden" onclick="if (event.target.id === 'supportModal') closeSupport()">
-  <div class="card">
-    <div class="card-body" style="padding-top:16px">
-      <h2>Support</h2>
-      <p class="lede">This goes to the admin. They can read it on their account.</p>
-      <form onsubmit="sendSupport(event)">
-        <textarea id="supportText" maxlength="100" placeholder="Write your message"></textarea>
-        <div id="supportError" class="error"></div>
-        <button type="submit">Send</button>
-        <button class="secondary" type="button" onclick="closeSupport()">Close</button>
-      </form>
-    </div>
-  </div>
-</div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
   const API = "https://api.keyval.org";
@@ -338,6 +350,11 @@
   const roomTitle = document.getElementById("roomTitle");
   const accountBar = document.getElementById("accountBar");
   const accountName = document.getElementById("accountName");
+  const appTabs = document.getElementById("appTabs");
+  const usersScreen = document.getElementById("usersScreen");
+  const supportScreen = document.getElementById("supportScreen");
+  let presenceTimer = null;
+  let usersTimer = null;
 
   function applyTheme(theme) {
     const next = theme === "dark" ? "dark" : "light";
@@ -478,7 +495,10 @@
     currentUser = user;
     accountName.textContent = user.name + (isAdmin() ? " · admin" : "");
     accountBar.classList.remove("hidden");
+    appTabs.classList.remove("hidden");
+    document.getElementById("usersTab").classList.toggle("hidden", !isAdmin());
     localStorage.setItem(SESSION_KEY, JSON.stringify({ id: user.id, email: user.email }));
+    startPresence();
   }
   function showAuthMode(mode) {
     const signup = mode === "signup";
@@ -496,15 +516,38 @@
   }
   function showAuth() {
     stopPolling();
+    stopPresence();
+    stopUsersRefresh();
     home.classList.add("hidden"); joinScreen.classList.add("hidden"); chat.classList.add("hidden");
+    usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden");
     roomDock.classList.add("hidden"); roomTitle.classList.add("hidden"); accountBar.classList.add("hidden");
+    appTabs.classList.add("hidden");
     auth.classList.remove("hidden");
   }
-  async function showHome() {
+  function markTab(name) {
+    document.getElementById("homeTab").classList.toggle("active", name === "home");
+    document.getElementById("usersTab").classList.toggle("active", name === "users");
+    document.getElementById("supportTab").classList.toggle("active", name === "support");
+  }
+  async function leaveChatQuiet() {
+    if (!currentRoom) return;
+    const room = currentRoom;
+    await leaveVoice();
+    if (!ghostMode) await forgetMember(room);
     stopPolling();
+    currentRoom = null;
+    chat.classList.add("hidden");
+    roomTitle.classList.add("hidden");
+    document.getElementById("gifPanel").classList.add("hidden");
+  }
+  async function showHome() {
+    await leaveChatQuiet();
+    stopUsersRefresh();
     auth.classList.add("hidden"); joinScreen.classList.add("hidden"); chat.classList.add("hidden");
+    usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden");
     roomTitle.classList.add("hidden"); home.classList.remove("hidden"); roomDock.classList.remove("hidden");
-    accountBar.classList.remove("hidden");
+    accountBar.classList.remove("hidden"); appTabs.classList.remove("hidden");
+    markTab("home");
     try {
       renderRoomDock(await loadRooms());
       const count = Number(await getValue(usersKey())) || 0;
@@ -567,12 +610,105 @@
   }
   function supportIndexKey() { return KEY_PREFIX + "sup"; }
   function supportItemKey(id) { return KEY_PREFIX + "s" + id; }
-  function openSupport() {
-    document.getElementById("supportError").textContent = "";
-    document.getElementById("supportModal").classList.remove("hidden");
-    document.getElementById("supportText").focus();
+  function userListKey() { return KEY_PREFIX + "ulist"; }
+  function dirKey(id) { return KEY_PREFIX + "d" + id; }
+  function stopPresence() { if (presenceTimer) clearInterval(presenceTimer); presenceTimer = null; }
+  function startPresence() { stopPresence(); touchPresence(); presenceTimer = setInterval(touchPresence, 20000); }
+  function stopUsersRefresh() { if (usersTimer) clearInterval(usersTimer); usersTimer = null; }
+  async function touchPresence() {
+    if (!currentUser) return;
+    if (isAdmin()) ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
+    if (ghostMode) return;
+    const status = currentUser.status || "online";
+    const body = [currentUser.name.replace(/~/g, "").slice(0, 20), currentUser.email.slice(0, 60), currentUser.rank || "", String(Date.now()), status].join("~");
+    await setValue(dirKey(currentUser.id), body);
+    const raw = await getValue(userListKey());
+    const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    if (!ids.includes(currentUser.id)) {
+      ids.push(currentUser.id);
+      let next = ids.join(",");
+      while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
+      await setValue(userListKey(), next);
+    }
   }
-  function closeSupport() { document.getElementById("supportModal").classList.add("hidden"); }
+  async function showSupport() {
+    await leaveChatQuiet();
+    stopUsersRefresh();
+    auth.classList.add("hidden"); home.classList.add("hidden"); joinScreen.classList.add("hidden");
+    usersScreen.classList.add("hidden"); chat.classList.add("hidden"); roomDock.classList.add("hidden");
+    roomTitle.classList.add("hidden");
+    supportScreen.classList.remove("hidden");
+    appTabs.classList.remove("hidden");
+    markTab("support");
+    document.getElementById("supportError").textContent = "";
+    document.getElementById("supportInboxWrap").classList.toggle("hidden", !isAdmin());
+    if (isAdmin()) await renderSupportInbox();
+  }
+  async function showUsers() {
+    if (!isAdmin()) { await showHome(); return; }
+    await leaveChatQuiet();
+    auth.classList.add("hidden"); home.classList.add("hidden"); joinScreen.classList.add("hidden");
+    supportScreen.classList.add("hidden"); chat.classList.add("hidden"); roomDock.classList.add("hidden");
+    roomTitle.classList.add("hidden");
+    usersScreen.classList.remove("hidden");
+    appTabs.classList.remove("hidden");
+    markTab("users");
+    await renderUsers();
+    stopUsersRefresh();
+    usersTimer = setInterval(() => { renderUsers().catch(() => {}); }, 15000);
+  }
+  async function renderUsers() {
+    const list = document.getElementById("userList");
+    const raw = await getValue(userListKey());
+    const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    const bans = ((await getValue(bansKey())) || "").split(",").filter((item) => item && item !== "-");
+    list.innerHTML = "";
+    if (!ids.length) {
+      const empty = document.createElement("p");
+      empty.className = "lede";
+      empty.textContent = "No one has signed in since the user list started.";
+      list.appendChild(empty);
+      return;
+    }
+    for (const id of ids) {
+      const dirRaw = await getValue(dirKey(id));
+      const profile = parseProfile(await getValue(profileKey(id)), "");
+      const stored = parseUser(id, "", await getValue(userKey(id)));
+      const [dirName, email, rank, seen, dirStatus] = String(dirRaw || "").split("~");
+      const name = profile.name && profile.name !== "User" ? profile.name : (dirName || (stored && stored.name) || "User");
+      const seenMs = Number(seen) || 0;
+      const chosen = dirStatus || profile.status || "online";
+      const live = seenMs > 0 && Date.now() - seenMs < 50000 && chosen !== "offline";
+      const label = !live ? "Offline" : chosen === "idle" ? "Idle" : chosen === "dnd" ? "Do not disturb" : "Online";
+      const card = document.createElement("div");
+      card.className = "user-card";
+      const top = document.createElement("div");
+      top.className = "user-top";
+      const dot = document.createElement("span");
+      dot.className = "presence " + (!live ? "offline" : chosen === "idle" ? "idle" : chosen === "dnd" ? "dnd" : "online");
+      const who = document.createElement("strong");
+      who.textContent = name;
+      const state = document.createElement("span");
+      state.textContent = label;
+      top.appendChild(dot); top.appendChild(who); top.appendChild(state);
+      card.appendChild(top);
+      const lines = [
+        email || "No email saved yet",
+        ordinal(rank || (stored && stored.rank)),
+        seenMs ? "Last seen " + new Date(seenMs).toLocaleString() : "Last seen unknown"
+      ];
+      if (profile.custom) lines.push(profile.custom);
+      if (profile.about) lines.push(profile.about);
+      if (bans.includes(id)) lines.push("Banned");
+      for (const line of lines) {
+        const meta = document.createElement("div");
+        meta.className = "user-meta";
+        meta.textContent = line;
+        card.appendChild(meta);
+      }
+      list.appendChild(card);
+    }
+  }
   async function sendSupport(event) {
     event.preventDefault();
     const errorEl = document.getElementById("supportError");
@@ -591,7 +727,7 @@
       while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
       await setValue(supportIndexKey(), next);
       document.getElementById("supportText").value = "";
-      closeSupport();
+      errorEl.textContent = "Sent.";
       if (isAdmin()) await renderSupportInbox();
     } catch (err) { errorEl.textContent = err.message; }
   }
@@ -654,7 +790,6 @@
     ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
     document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
     document.getElementById("ghostHint").classList.toggle("hidden", !ghostMode);
-    await renderSupportInbox();
     const list = document.getElementById("allRooms");
     list.innerHTML = "";
     if (!ghostMode) return;
@@ -680,7 +815,12 @@
     document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
     await renderAdmin();
   }
-  function logout() {
+  async function logout() {
+    stopPresence();
+    if (currentUser && !ghostMode) {
+      const body = [currentUser.name.replace(/~/g, "").slice(0, 20), currentUser.email.slice(0, 60), currentUser.rank || "", "0", "offline"].join("~");
+      await setValue(dirKey(currentUser.id), body).catch(() => {});
+    }
     localStorage.removeItem(SESSION_KEY);
     currentUser = null; currentRoom = null;
     showAuth(); showAuthMode("login");
@@ -701,7 +841,8 @@
   }
   function showJoin() {
     document.getElementById("homeError").textContent = "";
-    home.classList.add("hidden"); roomDock.classList.add("hidden"); joinScreen.classList.remove("hidden");
+    home.classList.add("hidden"); usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden"); roomDock.classList.add("hidden"); joinScreen.classList.remove("hidden");
+    markTab("home");
     document.getElementById("joinCode").focus();
   }
   async function joinRoom() {
@@ -727,7 +868,9 @@
     messagesEl.innerHTML = "";
     const hiddenRaw = await getValue(hideKey(currentUser.id, room.code));
     hidden = new Set(hiddenRaw && hiddenRaw !== "-" ? hiddenRaw.split(",").filter(Boolean) : []);
-    home.classList.add("hidden"); joinScreen.classList.add("hidden"); auth.classList.add("hidden"); roomDock.classList.add("hidden");
+    home.classList.add("hidden"); joinScreen.classList.add("hidden"); auth.classList.add("hidden");
+    usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden"); roomDock.classList.add("hidden");
+    stopUsersRefresh();
     chat.classList.remove("hidden");
     roomTitle.textContent = `${room.name} · Code: ${room.code}`;
     roomTitle.classList.remove("hidden");
@@ -1266,6 +1409,7 @@
       about: document.getElementById("profileAboutInput").value.trim().slice(0, 80)
     };
     currentUser.name = profile.name;
+    currentUser.status = profile.status;
     await setValue(userKey(currentUser.id), packUser(currentUser));
     await setValue(profileKey(currentUser.id), packProfile(profile));
     const file = document.getElementById("picInput").files[0];
@@ -1278,6 +1422,7 @@
       if (url.startsWith("https://")) await setValue(picKey(currentUser.id), url);
     }
     setAccount(currentUser);
+    await touchPresence();
     openProfile(currentUser.id);
   }
   async function banViewed() {

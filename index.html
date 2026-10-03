@@ -425,11 +425,24 @@
     if (!data || data.status === "-KEY-DOESNT-EXISTS-") return "";
     return data.val == null ? "" : String(data.val);
   }
+  function valueBudget(key) { return 123 - String(key).length; }
+  function fitJoin(key, items, sep = ",") {
+    const budget = valueBudget(key);
+    const out = items.filter(Boolean).slice();
+    while (out.length > 1 && out.join(sep).length > budget) out.shift();
+    let joined = out.join(sep);
+    if (joined.length > budget) joined = joined.slice(0, budget);
+    return joined || "-";
+  }
   async function setValue(key, value) {
-    const safe = encodeURIComponent(String(value)).slice(0, 260);
-    const res = await fetch(`${API}/set/${encodeURIComponent(key)}/${safe}`);
+    const budget = valueBudget(key);
+    if (budget < 1) throw new Error("Could not save.");
+    let safe = String(value);
+    if (safe.length > budget) safe = safe.slice(0, budget);
+    const res = await fetch(`${API}/set/${encodeURIComponent(key)}/${encodeURIComponent(safe)}`);
     if (!res.ok) throw new Error("Could not save.");
     const data = await res.json().catch(() => ({}));
+    if (data.status === "-KEY-OR-VALUE-TOO-LONG-") throw new Error("Could not save. It is too long.");
     if (data.status && data.status !== "SUCCESS") throw new Error("Could not save.");
   }
   function namesKey() { return KEY_PREFIX + "names"; }
@@ -440,7 +453,26 @@
     return { id, email, salt, passwordHash, name: name || email.split("@")[0], verified: verified === "0" ? false : true, codeHash: codeHash || "", rank: rank || "" };
   }
   function packUser(user) {
-    return [user.salt, user.passwordHash, user.name.replace(/~/g, ""), user.verified ? "1" : "0", user.codeHash || "", user.rank || ""].join("~");
+    const verified = user.verified ? "1" : "0";
+    let hash = String(user.passwordHash || "");
+    let name = String(user.name || "").replace(/~/g, "").slice(0, 16);
+    let rank = String(user.rank || "").replace(/~/g, "").slice(0, 4);
+    const salt = String(user.salt || "");
+    const budget = valueBudget(userKey(user.id));
+    const build = () => [salt, hash, name, verified, "", rank].join("~");
+    if (build().length > budget && hash.length > 32) hash = hash.slice(0, 32);
+    while (build().length > budget && name.length > 1) name = name.slice(0, -1);
+    user.passwordHash = hash;
+    user.name = name || user.name;
+    return build();
+  }
+  async function passwordMatches(user, password) {
+    const full = await sha256(user.salt + ":" + password);
+    const stored = user.passwordHash || "";
+    return stored.length >= 32 && (full === stored || full.startsWith(stored));
+  }
+  function codeMatches(stored, digest) {
+    return !!stored && stored.length >= 16 && (digest === stored || digest.startsWith(stored));
   }
   function bansKey() { return KEY_PREFIX + "bans"; }
   function picKey(id) { return KEY_PREFIX + "pic" + id; }
@@ -622,10 +654,11 @@
   }
   async function issueVerifyCode(user) {
     const code = makePin();
-    user.codeHash = await sha256("code:" + code);
+    const digest = await sha256("code:" + code);
+    user.codeHash = digest.slice(0, 16);
     user.codeExpires = Date.now() + CODE_MS;
     await setValue(userKey(user.id), packUser(user));
-    await setValue(codeExpiryKey(user.id), String(user.codeExpires));
+    await setValue(codeExpiryKey(user.id), user.codeHash + "~" + user.codeExpires);
     await sendMail(user.email, "Messenger verification code", "Your Messenger verification code is " + code + ". It expires in 15 minutes.");
     return code;
   }
@@ -669,7 +702,7 @@
         showVerify(user);
         return;
       }
-      if (!existing || await sha256(existing.salt + ":" + password) !== existing.passwordHash) {
+      if (!existing || !(await passwordMatches(existing, password))) {
         errorEl.textContent = "Wrong email or password.";
         return;
       }
@@ -678,7 +711,15 @@
         return;
       }
       if (!existing.verified) {
-        existing.codeExpires = Number(await getValue(codeExpiryKey(existing.id))) || 0;
+        const rawCode = String(await getValue(codeExpiryKey(existing.id)) || "");
+        const [hash, exp] = rawCode.split("~");
+        if (hash && /^\d+$/.test(hash) && !exp) {
+          existing.codeExpires = Number(hash) || 0;
+          existing.codeHash = "";
+        } else {
+          existing.codeHash = hash && hash !== "-" ? hash : "";
+          existing.codeExpires = Number(exp) || 0;
+        }
         showVerify(existing);
         errorEl.textContent = existing.codeHash ? "Enter the code from your email, or resend it." : "Verify your email before logging in.";
         return;
@@ -697,7 +738,7 @@
     const entered = document.getElementById("verifyCode").value.trim();
     const expires = Number(pendingUser.codeExpires || await getValue(codeExpiryKey(pendingUser.id))) || 0;
     if (!expires || Date.now() > expires) { errorEl.textContent = "That code expired. Press Resend code."; return; }
-    if (await sha256("code:" + entered) !== pendingUser.codeHash) { errorEl.textContent = "Wrong verification code."; return; }
+    if (!codeMatches(pendingUser.codeHash, await sha256("code:" + entered))) { errorEl.textContent = "Wrong verification code."; return; }
     pendingUser.verified = true;
     pendingUser.codeHash = "";
     if (!pendingUser.rank) {
@@ -757,7 +798,7 @@
         if (!existing) { errorEl.textContent = "No account uses that email."; return; }
         const code = makePin();
         const expires = Date.now() + CODE_MS;
-        await setValue(resetKey(id), (await sha256("reset:" + code)) + "~" + expires);
+        await setValue(resetKey(id), (await sha256("reset:" + code)).slice(0, 16) + "~" + expires);
         await sendMail(email, "Messenger password reset", "Your Messenger password reset code is " + code + ". It expires in 15 minutes.");
         resetAccount = existing;
         document.getElementById("resetEmail").classList.add("hidden");
@@ -782,7 +823,7 @@
         document.getElementById("resetError").textContent = "That code expired. Start again.";
         return;
       }
-      if (await sha256("reset:" + entered) !== hash) { errorEl.textContent = "Wrong reset code."; return; }
+      if (!codeMatches(hash, await sha256("reset:" + entered))) { errorEl.textContent = "Wrong reset code."; return; }
       resetAccount.passwordHash = await sha256(resetAccount.salt + ":" + next);
       await setValue(userKey(resetAccount.id), packUser(resetAccount));
       await setValue(resetKey(resetAccount.id), "-");
@@ -797,15 +838,9 @@
   async function releaseName(name) {
     const raw = await getValue(namesKey());
     const names = raw && raw !== "-" ? raw.split(",").filter((item) => item && item !== String(name || "").toLowerCase()) : [];
-    await setValue(namesKey(), names.join(",") || "-");
+    await setValue(namesKey(), fitJoin(namesKey(), names));
   }
-  async function deleteAccount() {
-    if (!currentUser) return;
-    const typed = prompt("Type DELETE to remove " + currentUser.email + ". This cannot be undone.");
-    if (typed !== "DELETE") return;
-    const id = currentUser.id;
-    const name = currentUser.name;
-    stopPresence();
+  async function wipeUserRecord(id, name) {
     await setValue(userKey(id), "-");
     await setValue(profileKey(id), "-");
     await setValue(dirKey(id), "-");
@@ -815,10 +850,37 @@
     await setValue(codeExpiryKey(id), "-");
     await setValue(resetKey(id), "-");
     await setValue(ghostStoreKey(id), "-");
-    await releaseName(name);
+    if (name) await releaseName(name);
     const raw = await getValue(userListKey());
     const ids = raw && raw !== "-" ? raw.split(",").filter((item) => item && item !== id) : [];
-    await setValue(userListKey(), ids.join(",") || "-");
+    await setValue(userListKey(), fitJoin(userListKey(), ids));
+    const bans = ((await getValue(bansKey())) || "").split(",").filter((item) => item && item !== "-" && item !== id);
+    await setValue(bansKey(), fitJoin(bansKey(), bans));
+  }
+  async function setBanned(id, banned) {
+    if (!isAdmin() || !id || id === currentUser.id) return;
+    if (!confirm(banned ? "Ban this user? They will not be able to log in." : "Unban this user?")) return;
+    const raw = await getValue(bansKey());
+    let ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    ids = ids.filter((item) => item !== id);
+    if (banned) ids.push(id);
+    await setValue(bansKey(), fitJoin(bansKey(), ids));
+    await renderUsers();
+  }
+  async function adminDeleteUser(id, name) {
+    if (!isAdmin() || !id || id === currentUser.id) return;
+    if (!confirm("Delete " + (name || "this user") + "? This cannot be undone.")) return;
+    await wipeUserRecord(id, name);
+    await renderUsers();
+  }
+  async function deleteAccount() {
+    if (!currentUser) return;
+    const typed = prompt("Type DELETE to remove " + currentUser.email + ". This cannot be undone.");
+    if (typed !== "DELETE") return;
+    const id = currentUser.id;
+    const name = currentUser.name;
+    stopPresence();
+    await wipeUserRecord(id, name);
     closeProfile();
     localStorage.removeItem(SESSION_KEY);
     currentUser = null;
@@ -838,16 +900,14 @@
     if (!currentUser) return;
     if (isAdmin()) ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
     if (ghostMode) return;
-    const status = currentUser.status || "online";
-    const body = [currentUser.name.replace(/~/g, "").slice(0, 20), currentUser.email.slice(0, 60), currentUser.rank || "", String(Date.now()), status].join("~");
+    const status = String(currentUser.status || "online").slice(0, 8);
+    const body = [currentUser.name.replace(/~/g, "").slice(0, 16), currentUser.email.slice(0, 36), String(currentUser.rank || "").slice(0, 4), String(Date.now()), status].join("~");
     await setValue(dirKey(currentUser.id), body);
     const raw = await getValue(userListKey());
     const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     if (!ids.includes(currentUser.id)) {
       ids.push(currentUser.id);
-      let next = ids.join(",");
-      while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
-      await setValue(userListKey(), next);
+      await setValue(userListKey(), fitJoin(userListKey(), ids));
     }
   }
   async function showSupport() {
@@ -925,6 +985,23 @@
         meta.textContent = line;
         card.appendChild(meta);
       }
+      if (isAdmin() && currentUser && id !== currentUser.id) {
+        const actions = document.createElement("div");
+        actions.className = "room-actions";
+        const ban = document.createElement("button");
+        ban.type = "button";
+        ban.className = "secondary small";
+        ban.textContent = bans.includes(id) ? "Unban" : "Ban";
+        ban.onclick = () => setBanned(id, !bans.includes(id));
+        const del = document.createElement("button");
+        del.type = "button";
+        del.className = "danger small";
+        del.textContent = "Delete";
+        del.onclick = () => adminDeleteUser(id, name);
+        actions.appendChild(ban);
+        actions.appendChild(del);
+        card.appendChild(actions);
+      }
       list.appendChild(card);
     }
   }
@@ -937,14 +1014,12 @@
     if (!text) { errorEl.textContent = "Write a message first."; return; }
     try {
       const id = Date.now().toString(36);
-      const body = [currentUser.id, currentUser.name.replace(/~/g, ""), currentUser.email, new Date().toISOString(), text].join("~");
+      const body = [currentUser.id, currentUser.name.replace(/~/g, "").slice(0, 12), currentUser.email.slice(0, 28), String(Date.now()), text.slice(0, 24)].join("~");
       await setValue(supportItemKey(id), body);
       const raw = await getValue(supportIndexKey());
       const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
       ids.push(id);
-      let next = ids.join(",");
-      while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
-      await setValue(supportIndexKey(), next);
+      await setValue(supportIndexKey(), fitJoin(supportIndexKey(), ids));
       document.getElementById("supportText").value = "";
       errorEl.textContent = "Sent.";
       if (isAdmin()) await renderSupportInbox();
@@ -973,7 +1048,7 @@
       who.textContent = (name || "User") + (email ? " · " + email : "");
       const time = document.createElement("span");
       time.className = "time";
-      const date = new Date(createdAt);
+      const date = /^\d+$/.test(createdAt || "") ? new Date(Number(createdAt)) : new Date(createdAt);
       time.textContent = Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
       const msg = document.createElement("div");
       msg.textContent = rest.join("~");
@@ -993,14 +1068,14 @@
     const raw = await getValue(namesKey());
     const names = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     names.push(name.toLowerCase());
-    await setValue(namesKey(), names.slice(-18).join(","));
+    await setValue(namesKey(), fitJoin(namesKey(), names));
   }
   async function registerRoom(code, name) {
     const raw = await getValue(allKey());
     const rooms = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     const item = code + ":" + encodeURIComponent(name.slice(0, 16));
     if (!rooms.some((entry) => entry.startsWith(code + ":"))) rooms.push(item);
-    await setValue(allKey(), rooms.slice(-24).join(","));
+    await setValue(allKey(), fitJoin(allKey(), rooms));
   }
   async function renderAdmin() {
     const box = document.getElementById("adminBox");
@@ -1175,9 +1250,7 @@
     const index = await getValue(indexKey(currentRoom));
     const ids = index && index !== "-" ? index.split(",").filter(Boolean) : [];
     ids.push(message.id);
-    let next = ids.join(",");
-    while (next.length > 240 && ids.length > 1) { ids.shift(); next = ids.join(","); }
-    await setValue(indexKey(currentRoom), next);
+    await setValue(indexKey(currentRoom), fitJoin(indexKey(currentRoom), ids));
   }
   async function forgetMember(code) {
     const raw = await getValue(membersKey(code));
@@ -1195,7 +1268,7 @@
     const raw = await getValue(membersKey(currentRoom));
     const names = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     if (!names.includes(clean)) names.push(clean);
-    await setValue(membersKey(currentRoom), names.slice(-10).join(","));
+    await setValue(membersKey(currentRoom), fitJoin(membersKey(currentRoom), names));
   }
 
   async function roomMembers() {
@@ -1298,7 +1371,7 @@
     const votes = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     if (votes.some((item) => item.startsWith(currentUser.id + ":"))) { setStatus("You already voted.", "#faa81a"); return; }
     votes.push(currentUser.id + ":" + choice);
-    await setValue(voteKey(id), votes.slice(-12).join(","));
+    await setValue(voteKey(id), fitJoin(voteKey(id), votes));
     const node = messagesEl.querySelector(`[data-id="${id}"]`);
     if (node) node.remove();
     const rawMessage = await getValue(messageKey(currentRoom, id));
@@ -1596,7 +1669,15 @@
   function goHome() { joinScreen.classList.add("hidden"); showHome(); document.getElementById("joinError").textContent = ""; }
 
   function packProfile(profile) {
-    return [profile.name, profile.status, profile.color, profile.custom, profile.about].map((part) => String(part || "").replace(/~/g, "")).join("~");
+    let name = String(profile.name || "").replace(/~/g, "").slice(0, 16);
+    let status = String(profile.status || "online").slice(0, 8);
+    let color = String(profile.color || "5865f2").replace(/~/g, "").slice(0, 6);
+    let custom = String(profile.custom || "").replace(/~/g, "").slice(0, 24);
+    let about = String(profile.about || "").replace(/~/g, "").slice(0, 36);
+    let body = [name, status, color, custom, about].join("~");
+    while (body.length > 100 && about.length) { about = about.slice(0, -1); body = [name, status, color, custom, about].join("~"); }
+    while (body.length > 100 && custom.length) { custom = custom.slice(0, -1); body = [name, status, color, custom, about].join("~"); }
+    return body;
   }
   function parseProfile(raw, fallbackName) {
     const [name, status, color, custom, about] = String(raw || "").split("~");
@@ -1685,7 +1766,7 @@
     const raw = await getValue(bansKey());
     const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     if (!ids.includes(viewingId)) ids.push(viewingId);
-    await setValue(bansKey(), ids.slice(-20).join(","));
+    await setValue(bansKey(), fitJoin(bansKey(), ids));
     closeProfile();
   }
   async function showChatPeople() {

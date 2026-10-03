@@ -135,6 +135,8 @@
     .online { background: #3ba55d; } .idle { background: #faa81a; } .dnd { background: #ed4245; } .offline { background: #80848e; }
     .card h2 { margin: 8px 0 2px; }
     .about { color: var(--muted); margin: 8px 0; white-space: pre-wrap; }
+    .support-note { text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px auto; max-width: 420px; background: var(--dock); }
+    .support-note .time { display: block; margin: 2px 0 6px; }
     @media (max-width: 600px) {
       .message { max-width: 88%; }
       #accountBar, #themeButton { position: static; }
@@ -151,6 +153,7 @@
     <h2>Messenger</h2>
     <div id="accountBar" class="hidden">
       <button id="accountName" class="small" type="button" onclick="openOwnProfile()">Account</button>
+      <button class="small" type="button" onclick="openSupport()">Support</button>
       <button class="small" type="button" onclick="logout()">Log out</button>
     </div>
     <div id="roomTitle" class="hidden"></div>
@@ -175,13 +178,6 @@
       <button id="authSubmit" type="submit">Log in</button>
     </form>
     <div id="authError" class="error"></div>
-    <form id="verifyForm" class="hidden" onsubmit="submitVerify(event)">
-      <p class="lede">Enter the 6-digit code sent to your email.</p>
-      <input id="verifyCode" inputmode="numeric" maxlength="6" placeholder="Verification code" required>
-      <br>
-      <button type="submit">Verify email</button>
-      <button class="secondary" type="button" onclick="resendCode()">Resend code</button>
-    </form>
   </div>
 
   <div id="home" class="screen hidden">
@@ -191,6 +187,7 @@
     <br>
     <button type="button" onclick="createRoom()">Create Room</button>
     <button type="button" onclick="showJoin()">Join with Code</button>
+    <button class="secondary" type="button" onclick="openSupport()">Support</button>
     <div id="homeError" class="error"></div>
     <p id="userCount" class="lede">Registered users: …</p>
     <div id="adminBox" class="hidden">
@@ -199,6 +196,8 @@
       <p class="lede">Every room created on this site. Invisible mode lets you open them and join calls without appearing.</p>
       <p id="ghostHint" class="lede hidden">Invisible mode is on. Every created room is listed with how many people have opened it.</p>
       <div id="allRooms"></div>
+      <h3>Support inbox</h3>
+      <div id="supportInbox"></div>
     </div>
   </div>
 
@@ -296,6 +295,20 @@
 </div>
 
 <div id="stage" class="hidden"><video id="stageVideo" autoplay playsinline></video><button type="button" onclick="closeStage()">Close</button></div>
+<div id="supportModal" class="modal hidden" onclick="if (event.target.id === 'supportModal') closeSupport()">
+  <div class="card">
+    <div class="card-body" style="padding-top:16px">
+      <h2>Support</h2>
+      <p class="lede">This goes to the admin. They can read it on their account.</p>
+      <form onsubmit="sendSupport(event)">
+        <textarea id="supportText" maxlength="100" placeholder="Write your message"></textarea>
+        <div id="supportError" class="error"></div>
+        <button type="submit">Send</button>
+        <button class="secondary" type="button" onclick="closeSupport()">Close</button>
+      </form>
+    </div>
+  </div>
+</div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
   const API = "https://api.keyval.org";
@@ -376,11 +389,11 @@
     const data = await res.json().catch(() => ({}));
     if (data.status && data.status !== "SUCCESS") throw new Error("Could not save.");
   }
-  let pendingUser = null;
   function namesKey() { return KEY_PREFIX + "names"; }
   function parseUser(id, email, raw) {
+    if (!raw || raw === "-") return null;
     const [salt, passwordHash, name, verified, codeHash, rank] = String(raw).split("~");
-    if (!salt || !passwordHash) return null;
+    if (!salt || salt === "-" || !passwordHash || passwordHash.length < 32) return null;
     return { id, email, salt, passwordHash, name: name || email.split("@")[0], verified: verified === "0" ? false : true, codeHash: codeHash || "", rank: rank || "" };
   }
   function packUser(user) {
@@ -519,16 +532,18 @@
         const display = (name || email.split("@")[0]).slice(0, 20);
         const taken = await nameTaken(display);
         if (taken) { errorEl.textContent = "That display name is already used."; return; }
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        const user = { id, email, salt: randomSalt(), name: display, verified: false, codeHash: await sha256("code:" + code) };
+        const user = { id, email, salt: randomSalt(), name: display, verified: true, codeHash: "" };
         user.passwordHash = await sha256(user.salt + ":" + password);
+        const count = Number(await getValue(usersKey())) || 0;
+        user.rank = String(count + 1);
         await setValue(userKey(id), packUser(user));
+        await setValue(profileKey(id), packProfile({ name: display, status: "online", color: "5865f2", custom: "", about: "" }));
         await reserveName(display);
-        await sendVerifyEmail(email, code);
-        pendingUser = user;
-        showVerify();
-        document.getElementById("authNotice")?.remove();
-        errorEl.textContent = "";
+        await setValue(usersKey(), String(user.rank));
+        setAccount(user);
+        const theme = await getValue(themeKey(id));
+        if (theme === "dark" || theme === "light") applyTheme(theme);
+        await showHome();
         return;
       }
       if (!existing || await sha256(existing.salt + ":" + password) !== existing.passwordHash) {
@@ -540,10 +555,9 @@
         return;
       }
       if (!existing.verified) {
-        pendingUser = existing;
-        showVerify();
-        errorEl.textContent = "Verify your email before logging in. Use Resend code if you need a new one.";
-        return;
+        existing.verified = true;
+        existing.codeHash = "";
+        await setValue(userKey(id), packUser(existing));
       }
       setAccount(existing);
       const theme = await getValue(themeKey(id));
@@ -551,11 +565,69 @@
       await showHome();
     } catch (err) { errorEl.textContent = err.message; }
   }
-  function showVerify() {
-    document.getElementById("authForm").classList.add("hidden");
-    document.getElementById("verifyForm").classList.remove("hidden");
-    document.querySelector(".tabs").classList.add("hidden");
-    document.getElementById("authTitle").textContent = "Verify email";
+  function supportIndexKey() { return KEY_PREFIX + "sup"; }
+  function supportItemKey(id) { return KEY_PREFIX + "s" + id; }
+  function openSupport() {
+    document.getElementById("supportError").textContent = "";
+    document.getElementById("supportModal").classList.remove("hidden");
+    document.getElementById("supportText").focus();
+  }
+  function closeSupport() { document.getElementById("supportModal").classList.add("hidden"); }
+  async function sendSupport(event) {
+    event.preventDefault();
+    const errorEl = document.getElementById("supportError");
+    errorEl.textContent = "";
+    if (!currentUser) { errorEl.textContent = "Log in first."; return; }
+    const text = document.getElementById("supportText").value.trim().slice(0, 100).replace(/~/g, "-");
+    if (!text) { errorEl.textContent = "Write a message first."; return; }
+    try {
+      const id = Date.now().toString(36);
+      const body = [currentUser.id, currentUser.name.replace(/~/g, ""), currentUser.email, new Date().toISOString(), text].join("~");
+      await setValue(supportItemKey(id), body);
+      const raw = await getValue(supportIndexKey());
+      const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+      ids.push(id);
+      let next = ids.join(",");
+      while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
+      await setValue(supportIndexKey(), next);
+      document.getElementById("supportText").value = "";
+      closeSupport();
+      if (isAdmin()) await renderSupportInbox();
+    } catch (err) { errorEl.textContent = err.message; }
+  }
+  async function renderSupportInbox() {
+    const box = document.getElementById("supportInbox");
+    if (!box || !isAdmin()) return;
+    box.innerHTML = "";
+    const raw = await getValue(supportIndexKey());
+    const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    if (!ids.length) {
+      const empty = document.createElement("p");
+      empty.className = "lede";
+      empty.textContent = "No support messages yet.";
+      box.appendChild(empty);
+      return;
+    }
+    for (const id of ids.slice().reverse()) {
+      const rawItem = await getValue(supportItemKey(id));
+      if (!rawItem || rawItem === "-") continue;
+      const [uid, name, email, createdAt, ...rest] = rawItem.split("~");
+      const note = document.createElement("div");
+      note.className = "support-note";
+      const who = document.createElement("strong");
+      who.textContent = (name || "User") + (email ? " · " + email : "");
+      const time = document.createElement("span");
+      time.className = "time";
+      const date = new Date(createdAt);
+      time.textContent = Number.isNaN(date.getTime()) ? "" : date.toLocaleString();
+      const msg = document.createElement("div");
+      msg.textContent = rest.join("~");
+      note.appendChild(who);
+      note.appendChild(time);
+      note.appendChild(msg);
+      note.dataset.uid = uid || "";
+      box.appendChild(note);
+    }
   }
   async function nameTaken(name) {
     const raw = await getValue(namesKey());
@@ -567,51 +639,6 @@
     const names = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
     names.push(name.toLowerCase());
     await setValue(namesKey(), names.slice(-18).join(","));
-  }
-  async function sendVerifyEmail(email, code) {
-    const res = await fetch("https://formsubmit.co/ajax/" + encodeURIComponent(email), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        _subject: "Messenger verification code",
-        _captcha: "false",
-        message: "Your Messenger verification code is " + code + ". It expires when you verify."
-      })
-    });
-    if (!res.ok) throw new Error("Could not send the verification email.");
-  }
-  async function submitVerify(event) {
-    event.preventDefault();
-    const errorEl = document.getElementById("authError");
-    errorEl.textContent = "";
-    if (!pendingUser) { errorEl.textContent = "Sign up again to get a code."; return; }
-    const entered = document.getElementById("verifyCode").value.trim();
-    if (await sha256("code:" + entered) !== pendingUser.codeHash) {
-      errorEl.textContent = "Wrong verification code.";
-      return;
-    }
-    pendingUser.verified = true;
-    pendingUser.codeHash = "";
-    const count = Number(await getValue(usersKey())) || 0;
-    pendingUser.rank = String(count + 1);
-    await setValue(userKey(pendingUser.id), packUser(pendingUser));
-    await setValue(profileKey(pendingUser.id), packProfile({ name: pendingUser.name, status: "online", color: "5865f2", custom: "", about: "" }));
-    await setValue(usersKey(), String(pendingUser.rank));
-    setAccount(pendingUser);
-    pendingUser = null;
-    document.getElementById("verifyForm").classList.add("hidden");
-    document.getElementById("authForm").classList.remove("hidden");
-    document.querySelector(".tabs").classList.remove("hidden");
-    await showHome();
-  }
-  async function resendCode() {
-    const errorEl = document.getElementById("authError");
-    if (!pendingUser) { errorEl.textContent = "Log in again, then resend."; return; }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    pendingUser.codeHash = await sha256("code:" + code);
-    await setValue(userKey(pendingUser.id), packUser(pendingUser));
-    await sendVerifyEmail(pendingUser.email, code);
-    errorEl.textContent = "A new code was sent.";
   }
   async function registerRoom(code, name) {
     const raw = await getValue(allKey());
@@ -627,6 +654,7 @@
     ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
     document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
     document.getElementById("ghostHint").classList.toggle("hidden", !ghostMode);
+    await renderSupportInbox();
     const list = document.getElementById("allRooms");
     list.innerHTML = "";
     if (!ghostMode) return;

@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Messenger</title>
+  <style>
+    :root {
+      --bg: #f2f4f7; --panel: #fff; --text: #222; --muted: #666; --line: #ddd;
+      --input: #fff; --input-border: #ccc; --bubble: #fff; --mine: #e8eaff;
+      --dock: #f7f7fb; --messages: #f7f7f7; --accent: #5865f2; --accent-2: #4752c4; --danger: #d33;
+      --bg: #eef1f8; --panel: #ffffff; --text: #1c2230; --muted: #667085; --line: #e4e7ef;
+      --input: #f8f9fc; --input-border: #d5dae6; --bubble: #ffffff; --mine: #e7e9ff;
+      --dock: #f4f6fb; --messages: #f6f7fb; --accent: #5b6cff; --accent-2: #4453e6; --danger: #d4536a;
+    }
+    html[data-theme="dark"] {
+      --bg: #11131a; --panel: #1b1e27; --text: #f2f3f5; --muted: #b5b8c5; --line: #2c3140;
+      --input: #12141b; --input-border: #3a4054; --bubble: #262a36; --mine: #343c6e;
+      --dock: #151821; --messages: #12141b; --accent: #7b86ff; --accent-2: #6670e6; --danger: #ff8b8b;
+      --bg: #0c0e14; --panel: #1a1d27; --text: #f4f6fb; --muted: #a7adbd; --line: #2a3040;
+      --input: #12151d; --input-border: #343b4e; --bubble: #222633; --mine: #3a4270;
+      --dock: #12151c; --messages: #10131a; --accent: #8b97ff; --accent-2: #6f7cf0; --danger: #ff8d9a;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; font-family: Arial, sans-serif; background: var(--bg); color: var(--text); }
+    .app { width: 100%; max-width: 900px; height: 100vh; margin: 0 auto; background: var(--panel); display: flex; flex-direction: column; }
+    header { position: relative; padding: 18px 20px; background: var(--accent); color: #fff; text-align: center; }
+    header { position: relative; padding: 18px 20px; background: linear-gradient(90deg, #4453e6, #7a6cff); color: #fff; text-align: center; }
+    header h2 { margin: 0; }
+    #themeButton { position: absolute; top: 14px; left: 14px; background: rgba(255,255,255,.2); }
+    #accountBar { position: absolute; top: 14px; right: 14px; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    #accountName { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: transparent; color: #fff; padding: 6px 8px; }
+    #roomTitle { margin-top: 5px; font-size: 14px; opacity: .9; }
+    .screen { padding: 35px 20px 16px; text-align: center; overflow: auto; }
+    .screen h1, .screen h2 { margin-top: 0; }
+    .lede { color: var(--muted); margin-top: 0; }
+    input, select, textarea {
+      width: 100%; max-width: 420px; padding: 14px; margin: 8px 0; border: 1px solid var(--input-border);
+      border-radius: 9px; font-size: 16px; outline: none; background: var(--input); color: var(--text); font-family: inherit;
+    }
+    textarea { min-height: 70px; resize: vertical; }
+    input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+    button { padding: 13px 20px; margin: 8px 4px; border: 0; border-radius: 9px; background: var(--accent); color: #fff; font-size: 16px; cursor: pointer; }
+    button:hover { background: var(--accent-2); }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .secondary { background: #777; }
+    .danger { background: #a33; }
+    .secondary { background: #5c6478; }
+    .danger { background: #c44b63; }
+    .hidden { display: none !important; }
+    .error { color: var(--danger); margin: 12px; min-height: 20px; }
+    .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 8px; }
+    .tabs button { background: var(--mine); color: var(--accent); }
+    .tabs button.active { background: var(--accent); color: #fff; }
+    #chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    #chatBody { flex: 1; min-height: 0; display: flex; }
+    #chatMain { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; position: relative; }
+    #messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; background: var(--messages); }
+    #vcMenu {
+      width: 230px;
+      min-width: 230px;
+      border-right: 1px solid var(--line);
+      background: var(--dock);
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      gap: 8px;
+    }
+    #vcMenu h3 { margin: 0; font-size: 13px; color: var(--muted); }
+    .vc-actions { display: flex; flex-direction: column; gap: 6px; }
+    .vc-actions button { margin: 0; width: 100%; }
+    #voiceBar { display: flex; flex-direction: column; gap: 8px; overflow: auto; }
+    .voice-tile { width: 100%; background: #1a1d27; color: #fff; border-radius: 10px; overflow: hidden; text-align: left; font-size: 12px; cursor: pointer; border: 1px solid #2c3140; }
+    .voice-tile video { width: 100%; height: 120px; object-fit: cover; background: #000; display: block; }
+    .voice-tile { width: 100%; background: var(--panel); color: var(--text); border-radius: 10px; overflow: hidden; text-align: left; font-size: 12px; cursor: pointer; border: 1px solid var(--line); }
+    .voice-tile video { width: 100%; height: 120px; object-fit: cover; background: #0c0e14; display: block; }
+    .voice-tile .who { display: flex; align-items: center; gap: 8px; padding: 8px; }
+    .voice-tile .icon { width: 36px; height: 36px; border-radius: 50%; background: #5865f2; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; flex: none; }
+    .voice-tile .icon { width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: bold; overflow: hidden; flex: none; }
+    .voice-tile .icon img { width: 100%; height: 100%; object-fit: cover; }
+    #vcMembers { font-size: 12px; color: var(--muted); }
+    .mention { color: var(--accent); font-weight: bold; background: var(--mine); border-radius: 4px; padding: 0 3px; }
+    .message.tagged { outline: 2px solid var(--accent); }
+    #mentionMenu { position: absolute; left: 12px; bottom: 62px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; min-width: 180px; z-index: 3; }
+    #mentionMenu button { display: block; width: 100%; margin: 0; text-align: left; background: transparent; color: var(--text); border-radius: 0; }
+    #mentionMenu button:hover { background: var(--mine); }
+    #plusMenu { position: absolute; right: 12px; bottom: 64px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 8px; z-index: 4; display: flex; flex-direction: column; min-width: 160px; box-shadow: 0 8px 24px rgba(0,0,0,.18); }
+    #plusMenu button { margin: 4px 0; width: 100%; text-align: left; }
+    .avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+    #profileRank { color: var(--muted); font-size: 13px; }
+    #chatPeople { font-size: 12px; color: var(--muted); padding: 6px 12px; border-bottom: 1px solid var(--line); }
+    #emojiPanel { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-top: 1px solid var(--line); background: var(--dock); max-height: 140px; overflow: auto; }
+    #emojiPanel button { margin: 0; padding: 4px 6px; background: transparent; font-size: 20px; }
+    #stage { position: fixed; inset: 0; background: rgba(0,0,0,.88); z-index: 6; display: flex; align-items: center; justify-content: center; }
+    #stage video { width: min(100%, 1100px); max-height: 100%; background: #000; }
+    #stage button { position: absolute; top: 16px; right: 16px; }
+    #messages { flex: 1; min-height: 0; overflow-y: auto; padding: 20px; background: var(--messages); }
+    .message { background: var(--bubble); color: var(--text); padding: 10px 14px; margin-bottom: 10px; border-radius: 10px; max-width: 75%; box-shadow: 0 1px 3px rgba(0,0,0,.08); overflow-wrap: anywhere; }
+    .message.mine { margin-left: auto; background: var(--mine); }
+    .name { font-size: 12px; font-weight: bold; color: var(--accent); margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .name button { margin: 0; padding: 0; background: transparent; color: var(--accent); font-size: 12px; font-weight: bold; }
+    .time { color: var(--muted); font-weight: normal; }
+    .delete-msg { margin-left: auto; padding: 0 4px; background: transparent; color: var(--muted); font-size: 12px; }
+    .shot { max-width: 240px; border-radius: 8px; display: block; margin-top: 4px; cursor: zoom-in; }
+    .vote { border: 1px solid var(--line); border-radius: 8px; padding: 8px; margin-top: 4px; }
+    .vote button { display: block; width: 100%; margin: 4px 0; text-align: left; background: var(--mine); color: var(--text); }
+    .admin-badge { font-size: 11px; background: #faa81a; color: #222; border-radius: 6px; padding: 2px 6px; margin-left: 6px; }
+    .system-message { text-align: center; color: var(--muted); font-size: 13px; margin: 10px 0; }
+    .chat-input { display: flex; padding: 12px; border-top: 1px solid var(--line); gap: 8px; background: var(--panel); }
+    .chat-input input { flex: 1; max-width: none; margin: 0; }
+    .chat-input button { margin: 0; }
+    .chat-bar { display: flex; justify-content: space-between; align-items: center; padding: 6px 12px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted); gap: 8px; }
+    button.small { padding: 6px 12px; margin: 0; font-size: 13px; }
+    header button.small, #accountName { background: rgba(255,255,255,.2); }
+    header button.small:hover, #accountName:hover { background: rgba(255,255,255,.32); }
+    #roomDock { margin-top: auto; border-top: 1px solid var(--line); background: var(--dock); padding: 10px 14px 14px; max-height: 240px; overflow: auto; }
+    #roomDock h3 { margin: 0 0 8px; font-size: 13px; text-align: left; color: var(--muted); }
+    .room-row { width: 100%; margin: 0 0 6px; padding: 0; display: flex; background: var(--panel); color: var(--text); border: 1px solid var(--line); overflow: hidden; }
+    .room-open { flex: 1; margin: 0; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center; background: transparent; color: var(--text); text-align: left; border-radius: 0; }
+    .room-open:hover { background: var(--mine); }
+    .room-delete { margin: 0; border-radius: 0; background: #a33; padding: 10px 12px; }
+    .room-code { font-family: monospace; letter-spacing: 1px; color: var(--accent); }
+    .empty-rooms { color: var(--muted); font-size: 13px; text-align: left; margin: 0; }
+    #gifPanel { border-top: 1px solid var(--line); background: var(--dock); padding: 10px; max-height: 220px; overflow: auto; }
+    .gif-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+    .gif-tags button, .gif-grid button { margin: 0; padding: 6px 10px; font-size: 13px; background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+    .gif-grid { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .gif-grid img { width: 96px; height: 72px; object-fit: cover; border-radius: 6px; display: block; }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; z-index: 5; padding: 16px; }
+    .card { width: min(420px, 100%); background: var(--panel); color: var(--text); border-radius: 12px; overflow: hidden; }
+    .banner { height: 70px; }
+    .card-body { padding: 0 16px 16px; text-align: left; }
+    .avatar { width: 72px; height: 72px; border-radius: 50%; margin-top: -36px; border: 5px solid var(--panel); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; color: #fff; position: relative; }
+    .status-dot { width: 16px; height: 16px; border-radius: 50%; border: 3px solid var(--panel); position: absolute; right: -2px; bottom: -2px; }
+    .online { background: #3ba55d; } .idle { background: #faa81a; } .dnd { background: #ed4245; } .offline { background: #80848e; }
+    .card h2 { margin: 8px 0 2px; }
+    .about { color: var(--muted); margin: 8px 0; white-space: pre-wrap; }
+    @media (max-width: 600px) {
+      .message { max-width: 88%; }
+      #accountBar, #themeButton { position: static; }
+      header { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+      #chatBody { flex-direction: column; }
+      #vcMenu { width: 100%; min-width: 0; max-height: 240px; border-right: 0; border-bottom: 1px solid var(--line); }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <button id="themeButton" class="small" type="button" onclick="toggleTheme()">Dark</button>
+    <h2>Messenger</h2>
+    <div id="accountBar" class="hidden">
+      <button id="accountName" class="small" type="button" onclick="openOwnProfile()">Account</button>
+      <button class="small" type="button" onclick="logout()">Log out</button>
+    </div>
+    <div id="roomTitle" class="hidden"></div>
+  </header>
+
+  <div id="auth" class="screen">
+    <h1 id="authTitle">Log in</h1>
+    <p class="lede" id="authLede">The same account works on another phone or computer.</p>
+    <div class="tabs">
+      <button type="button" id="loginTab" class="active" onclick="showAuthMode('login')">Log in</button>
+      <button type="button" id="signupTab" onclick="showAuthMode('signup')">Sign up</button>
+    </div>
+    <form id="authForm" onsubmit="submitAuth(event)">
+      <input id="displayName" class="hidden" maxlength="20" placeholder="Display name" autocomplete="nickname">
+      <br class="signup-only hidden">
+      <input id="email" type="email" required placeholder="Email" autocomplete="email">
+      <br>
+      <input id="password" type="password" required minlength="6" placeholder="Password" autocomplete="current-password">
+      <br>
+      <input id="passwordConfirm" class="hidden" type="password" minlength="6" placeholder="Confirm password" autocomplete="new-password">
+      <br>
+      <button id="authSubmit" type="submit">Log in</button>
+    </form>
+    <div id="authError" class="error"></div>
+    <form id="verifyForm" class="hidden" onsubmit="submitVerify(event)">
+      <p class="lede">Enter the 6-digit code sent to your email.</p>
+      <input id="verifyCode" inputmode="numeric" maxlength="6" placeholder="Verification code" required>
+      <br>
+      <button type="submit">Verify email</button>
+      <button class="secondary" type="button" onclick="resendCode()">Resend code</button>
+    </form>
+  </div>
+
+  <div id="home" class="screen hidden">
+    <h1>Welcome</h1>
+    <p class="lede">Open your profile from your name. Rooms stay on your account across devices.</p>
+    <input id="roomName" maxlength="24" placeholder="New room name (optional)">
+    <br>
+    <button type="button" onclick="createRoom()">Create Room</button>
+    <button type="button" onclick="showJoin()">Join with Code</button>
+    <div id="homeError" class="error"></div>
+    <p id="userCount" class="lede">Registered users: …</p>
+    <div id="adminBox" class="hidden">
+      <h2>Admin</h2>
+      <button id="ghostButton" type="button" onclick="toggleGhost()">Invisible mode: off</button>
+      <p class="lede">Every room created on this site. Invisible mode lets you open them and join calls without appearing.</p>
+      <p id="ghostHint" class="lede hidden">Invisible mode is on. Every created room is listed with how many people have opened it.</p>
+      <div id="allRooms"></div>
+    </div>
+  </div>
+
+  <div id="joinScreen" class="screen hidden">
+    <h2>Join a Room</h2>
+    <input id="joinCode" maxlength="6" placeholder="Enter 6-character room code" autocomplete="off">
+    <br>
+    <button type="button" onclick="joinRoom()">Join</button>
+    <button class="secondary" type="button" onclick="goHome()">Back</button>
+    <div id="joinError" class="error"></div>
+  </div>
+
+  <div id="roomDock" class="hidden">
+    <h3>Your rooms</h3>
+    <div id="roomList"></div>
+  </div>
+
+  <div id="chat" class="hidden">
+    <div class="chat-bar">
+      <span id="connectionStatus">Connecting...</span>
+      <button class="secondary small" type="button" onclick="leaveRoom()">Leave Room</button>
+    </div>
+    <div id="chatBody">
+      <aside id="vcMenu">
+        <h3>Voice channel</h3>
+        <div class="vc-actions">
+          <button type="button" onclick="joinVoice(false)">Join voice</button>
+          <button type="button" onclick="joinVoice(true)">Video call</button>
+          <button class="secondary" type="button" onclick="toggleMute()">Mute</button>
+          <button class="secondary" type="button" onclick="toggleDeafen()">Deafen</button>
+          <button class="danger" type="button" onclick="leaveVoice()">Leave voice</button>
+        </div>
+        <div id="vcMembers">No one in voice yet.</div>
+        <div id="voiceBar"></div>
+      </aside>
+      <div id="chatMain">
+        <div id="mentionMenu" class="hidden"></div>
+        <div id="chatPeople">In chat: just you</div>
+        <div id="messages"></div>
+        <div id="gifPanel" class="hidden">
+          <div class="gif-tags" id="gifTags"></div>
+          <div class="gif-grid" id="gifGrid"></div>
+        </div>
+        <div id="emojiPanel" class="hidden"></div>
+        <div id="plusMenu" class="hidden">
+          <button type="button" onclick="pickExtra('emoji')">Emoji</button>
+          <button type="button" onclick="pickExtra('gif')">GIFs</button>
+          <button type="button" onclick="pickExtra('vote')">Vote</button>
+          <button type="button" onclick="pickExtra('shot')">Screenshot</button>
+        </div>
+        <div class="chat-input">
+          <input id="messageInput" maxlength="160" placeholder="Type a message..." autocomplete="off">
+          <button class="secondary" type="button" onclick="togglePlus()">+</button>
+          <input id="shotInput" class="hidden" type="file" accept="image/*" onchange="sendScreenshot(this.files[0])">
+          <button id="sendButton" type="button" onclick="sendMessage()">Send</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="profileModal" class="modal hidden" onclick="if (event.target.id === 'profileModal') closeProfile()">
+  <div class="card">
+    <div id="profileBanner" class="banner"></div>
+    <div class="card-body">
+      <div id="profileAvatar" class="avatar">A<span id="profileStatus" class="status-dot online"></span></div>
+      <h2 id="profileName">Name</h2>
+      <div id="profileRank">Member</div>
+      <div id="profileCustom" class="about"></div>
+      <strong>About me</strong>
+      <div id="profileAbout" class="about">No bio yet.</div>
+      <div id="profileViewActions">
+        <button type="button" class="secondary" onclick="closeProfile()">Close</button>
+        <button id="editProfileButton" type="button" onclick="editProfile()">Edit profile</button>
+        <button id="banButton" class="danger hidden" type="button" onclick="banViewed()">Ban user</button>
+      </div>
+      <form id="profileForm" class="hidden" onsubmit="saveProfile(event)">
+        <input id="picInput" type="file" accept="image/*">
+        <input id="profileNameInput" maxlength="20" placeholder="Display name">
+        <select id="profileStatusInput">
+          <option value="online">Online</option>
+          <option value="idle">Idle</option>
+          <option value="dnd">Do not disturb</option>
+          <option value="offline">Invisible</option>
+        </select>
+        <input id="profileColorInput" type="color" value="#5865f2">
+        <input id="profileCustomInput" maxlength="40" placeholder="Custom status">
+        <textarea id="profileAboutInput" maxlength="80" placeholder="About me"></textarea>
+        <br>
+        <button type="submit">Save</button>
+        <button class="secondary" type="button" onclick="closeProfile()">Cancel</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="stage" class="hidden"><video id="stageVideo" autoplay playsinline></video><button type="button" onclick="closeStage()">Close</button></div>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+  const API = "https://api.keyval.org";
+  const GIF_API = "https://api.otakugifs.xyz/gif?reaction=";
+  const ADMIN_EMAIL = "8081@perrys.org.uk";
+  const KEY_PREFIX = "mshggp2026";
+  const POLL_MS = 2000;
+  const SESSION_KEY = "messenger.session";
+  const THEME_KEY = "messenger.theme";
+  const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const GIF_TAGS = ["wave", "hug", "laugh", "cry", "dance", "thumbsup", "pat", "shrug", "clap", "wink"];
+  const SLURS = ["nigger", "nigga", "chink", "gook", "spic", "kike", "wetback", "raghead", "towelhead", "faggot", "tranny", "retard"];
+  const sentTimes = [];
+
+  let currentUser = null;
+  let currentRoom = null;
+  let pollTimer = null;
+  let hidden = new Set();
+  let viewingId = null;
+
+  const auth = document.getElementById("auth");
+  const home = document.getElementById("home");
+  const joinScreen = document.getElementById("joinScreen");
+  const chat = document.getElementById("chat");
+  const roomDock = document.getElementById("roomDock");
+  const messagesEl = document.getElementById("messages");
+  const roomTitle = document.getElementById("roomTitle");
+  const accountBar = document.getElementById("accountBar");
+  const accountName = document.getElementById("accountName");
+
+  function applyTheme(theme) {
+    const next = theme === "dark" ? "dark" : "light";
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem(THEME_KEY, next);
+    document.getElementById("themeButton").textContent = next === "dark" ? "Light" : "Dark";
+  }
+  async function toggleTheme() {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    if (currentUser) setValue(themeKey(currentUser.id), next).catch(() => {});
+  }
+  function bytesToHex(bytes) { return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join(""); }
+  async function sha256(text) {
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    return bytesToHex(new Uint8Array(digest));
+  }
+  async function userIdFromEmail(email) { return (await sha256("user:" + email)).slice(0, 12); }
+  function randomSalt() { const b = new Uint8Array(8); crypto.getRandomValues(b); return bytesToHex(b); }
+  function makeCode() { const b = new Uint8Array(6); crypto.getRandomValues(b); return [...b].map((n) => CODE_CHARS[n % CODE_CHARS.length]).join(""); }
+  function userKey(id) { return KEY_PREFIX + "u" + id; }
+  function listKey(id) { return KEY_PREFIX + "l" + id; }
+  function themeKey(id) { return KEY_PREFIX + "t" + id; }
+  function hideKey(id, code) { return KEY_PREFIX + "h" + id + code; }
+  function profileKey(id) { return KEY_PREFIX + "p" + id; }
+  function voiceKey(code) { return KEY_PREFIX + "v" + code; }
+  function roomKey(code) { return KEY_PREFIX + "r" + code; }
+  function usersKey() { return KEY_PREFIX + "users"; }
+  function voteKey(id) { return KEY_PREFIX + "b" + id; }
+  function isAdmin() { return !!(currentUser && currentUser.email === ADMIN_EMAIL); }
+  let ghostMode = false;
+  function allKey() { return KEY_PREFIX + "all"; }
+  function ghostStoreKey(id) { return KEY_PREFIX + "gh" + id; }
+  function membersKey(code) { return KEY_PREFIX + "e" + code; }
+  function indexKey(code) { return KEY_PREFIX + "i" + code; }
+  function messageKey(code, id) { return KEY_PREFIX + "m" + code + id; }
+
+  async function getValue(key) {
+    const res = await fetch(`${API}/get/${encodeURIComponent(key)}`);
+    if (!res.ok) throw new Error("Could not reach the shared store.");
+    const data = await res.json();
+    if (!data || data.status === "-KEY-DOESNT-EXISTS-") return "";
+    return data.val == null ? "" : String(data.val);
+  }
+  async function setValue(key, value) {
+    const safe = encodeURIComponent(String(value)).slice(0, 260);
+    const res = await fetch(`${API}/set/${encodeURIComponent(key)}/${safe}`);
+    if (!res.ok) throw new Error("Could not save.");
+    const data = await res.json().catch(() => ({}));
+    if (data.status && data.status !== "SUCCESS") throw new Error("Could not save.");
+  }
+  let pendingUser = null;
+  function namesKey() { return KEY_PREFIX + "names"; }
+  function parseUser(id, email, raw) {
+    const [salt, passwordHash, name, verified, codeHash, rank] = String(raw).split("~");
+    if (!salt || !passwordHash) return null;
+    return { id, email, salt, passwordHash, name: name || email.split("@")[0], verified: verified === "0" ? false : true, codeHash: codeHash || "", rank: rank || "" };
+  }
+  function packUser(user) {
+    return [user.salt, user.passwordHash, user.name.replace(/~/g, ""), user.verified ? "1" : "0", user.codeHash || "", user.rank || ""].join("~");
+  }
+  function bansKey() { return KEY_PREFIX + "bans"; }
+  function picKey(id) { return KEY_PREFIX + "pic" + id; }
+  function ordinal(n) {
+    const v = Number(n);
+    if (!v) return "Member";
+    const s = ["th", "st", "nd", "rd"];
+    const j = v % 100;
+    return v + (s[(j - 20) % 10] || s[j] || s[0]) + " user";
+  }
+  function parseRooms(raw) {
+    if (!raw || raw === "-") return [];
+    return raw.split(",").filter(Boolean).map((part) => {
+      const [code, name] = part.split(":");
+      return { code, name: decodeURIComponent(name || code) };
+    }).filter((room) => room.code);
+  }
+  function packRooms(rooms) { return rooms.map((room) => room.code + ":" + encodeURIComponent(room.name || room.code)).join(","); }
+  async function loadRooms() { return parseRooms(await getValue(listKey(currentUser.id))); }
+  async function saveRooms(rooms) {
+    await setValue(listKey(currentUser.id), packRooms(rooms.slice(-8)) || "-");
+    renderRoomDock(rooms.slice(-8));
+  }
+  function renderRoomDock(rooms) {
+    const list = document.getElementById("roomList");
+    list.innerHTML = "";
+    if (!rooms.length) {
+      const empty = document.createElement("p");
+      empty.className = "empty-rooms";
+      empty.textContent = "Rooms you create or join will stay here, on every device.";
+      list.appendChild(empty);
+      return;
+    }
+    for (const room of rooms) {
+      const row = document.createElement("div");
+      row.className = "room-row";
+      const open = document.createElement("button");
+      open.type = "button";
+      open.className = "room-open";
+      const name = document.createElement("span");
+      name.textContent = room.name;
+      const code = document.createElement("span");
+      code.className = "room-code";
+      code.textContent = room.code;
+      open.appendChild(name);
+      open.appendChild(code);
+      open.onclick = () => openSavedRoom(room.code);
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "room-delete";
+      remove.textContent = "Delete";
+      remove.onclick = () => deleteRoom(room.code);
+      row.appendChild(open);
+      row.appendChild(remove);
+      list.appendChild(row);
+    }
+  }
+  async function rememberRoom(room) {
+    const rooms = (await loadRooms()).filter((item) => item.code !== room.code);
+    rooms.push({ code: room.code, name: room.name });
+    await saveRooms(rooms);
+  }
+  async function deleteRoom(code) {
+    if (!confirm("Delete this chat for you only? Other people keep it.")) return;
+    await saveRooms((await loadRooms()).filter((item) => item.code !== code));
+    if (currentRoom === code) leaveRoom();
+  }
+  async function deleteCurrentRoom() { if (currentRoom) await deleteRoom(currentRoom); }
+  async function hideMessage(id) {
+    hidden.add(id);
+    const ids = [...hidden].slice(-18);
+    hidden = new Set(ids);
+    await setValue(hideKey(currentUser.id, currentRoom), ids.join(",") || "-");
+    const node = messagesEl.querySelector(`[data-id="${id}"]`);
+    if (node) node.remove();
+  }
+  function setAccount(user) {
+    currentUser = user;
+    accountName.textContent = user.name + (isAdmin() ? " · admin" : "");
+    accountBar.classList.remove("hidden");
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ id: user.id, email: user.email }));
+  }
+  function showAuthMode(mode) {
+    const signup = mode === "signup";
+    document.getElementById("loginTab").classList.toggle("active", !signup);
+    document.getElementById("signupTab").classList.toggle("active", signup);
+    document.getElementById("authTitle").textContent = signup ? "Sign up" : "Log in";
+    document.getElementById("authLede").textContent = signup ? "Create an account you can open on any device." : "The same account works on another phone or computer.";
+    document.getElementById("displayName").classList.toggle("hidden", !signup);
+    document.querySelectorAll(".signup-only").forEach((el) => el.classList.toggle("hidden", !signup));
+    document.getElementById("passwordConfirm").classList.toggle("hidden", !signup);
+    document.getElementById("passwordConfirm").required = signup;
+    document.getElementById("authSubmit").textContent = signup ? "Create account" : "Log in";
+    document.getElementById("authForm").dataset.mode = mode;
+    document.getElementById("authError").textContent = "";
+  }
+  function showAuth() {
+    stopPolling();
+    home.classList.add("hidden"); joinScreen.classList.add("hidden"); chat.classList.add("hidden");
+    roomDock.classList.add("hidden"); roomTitle.classList.add("hidden"); accountBar.classList.add("hidden");
+    auth.classList.remove("hidden");
+  }
+  async function showHome() {
+    stopPolling();
+    auth.classList.add("hidden"); joinScreen.classList.add("hidden"); chat.classList.add("hidden");
+    roomTitle.classList.add("hidden"); home.classList.remove("hidden"); roomDock.classList.remove("hidden");
+    accountBar.classList.remove("hidden");
+    try {
+      renderRoomDock(await loadRooms());
+      const count = Number(await getValue(usersKey())) || 0;
+      document.getElementById("userCount").textContent = "Registered users: " + count;
+      await renderAdmin();
+    } catch (err) { document.getElementById("homeError").textContent = err.message; }
+  }
+  async function submitAuth(event) {
+    event.preventDefault();
+    const mode = document.getElementById("authForm").dataset.mode || "login";
+    const email = document.getElementById("email").value.trim().toLowerCase();
+    const password = document.getElementById("password").value;
+    const name = document.getElementById("displayName").value.trim();
+    const errorEl = document.getElementById("authError");
+    errorEl.textContent = "";
+    if (mode === "signup" && password !== document.getElementById("passwordConfirm").value) {
+      errorEl.textContent = "Passwords do not match.";
+      return;
+    }
+    try {
+      const id = await userIdFromEmail(email);
+      const existing = parseUser(id, email, await getValue(userKey(id)));
+      if (mode === "signup") {
+        if (existing) { errorEl.textContent = "An account with that email already exists."; return; }
+        const display = (name || email.split("@")[0]).slice(0, 20);
+        const taken = await nameTaken(display);
+        if (taken) { errorEl.textContent = "That display name is already used."; return; }
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const user = { id, email, salt: randomSalt(), name: display, verified: false, codeHash: await sha256("code:" + code) };
+        user.passwordHash = await sha256(user.salt + ":" + password);
+        await setValue(userKey(id), packUser(user));
+        await reserveName(display);
+        await sendVerifyEmail(email, code);
+        pendingUser = user;
+        showVerify();
+        document.getElementById("authNotice")?.remove();
+        errorEl.textContent = "";
+        return;
+      }
+      if (!existing || await sha256(existing.salt + ":" + password) !== existing.passwordHash) {
+        errorEl.textContent = "Wrong email or password.";
+        return;
+      }
+      if ((await getValue(bansKey())).split(",").includes(existing.id)) {
+        errorEl.textContent = "This account is banned.";
+        return;
+      }
+      if (!existing.verified) {
+        pendingUser = existing;
+        showVerify();
+        errorEl.textContent = "Verify your email before logging in. Use Resend code if you need a new one.";
+        return;
+      }
+      setAccount(existing);
+      const theme = await getValue(themeKey(id));
+      if (theme === "dark" || theme === "light") applyTheme(theme);
+      await showHome();
+    } catch (err) { errorEl.textContent = err.message; }
+  }
+  function showVerify() {
+    document.getElementById("authForm").classList.add("hidden");
+    document.getElementById("verifyForm").classList.remove("hidden");
+    document.querySelector(".tabs").classList.add("hidden");
+    document.getElementById("authTitle").textContent = "Verify email";
+  }
+  async function nameTaken(name) {
+    const raw = await getValue(namesKey());
+    const names = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    return names.includes(name.toLowerCase());
+  }
+  async function reserveName(name) {
+    const raw = await getValue(namesKey());
+    const names = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    names.push(name.toLowerCase());
+    await setValue(namesKey(), names.slice(-18).join(","));
+  }
+  async function sendVerifyEmail(email, code) {
+    const res = await fetch("https://formsubmit.co/ajax/" + encodeURIComponent(email), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        _subject: "Messenger verification code",
+        _captcha: "false",
+        message: "Your Messenger verification code is " + code + ". It expires when you verify."
+      })
+    });
+    if (!res.ok) throw new Error("Could not send the verification email.");
+  }
+  async function submitVerify(event) {
+    event.preventDefault();
+    const errorEl = document.getElementById("authError");
+    errorEl.textContent = "";
+    if (!pendingUser) { errorEl.textContent = "Sign up again to get a code."; return; }
+    const entered = document.getElementById("verifyCode").value.trim();
+    if (await sha256("code:" + entered) !== pendingUser.codeHash) {
+      errorEl.textContent = "Wrong verification code.";
+      return;
+    }
+    pendingUser.verified = true;
+    pendingUser.codeHash = "";
+    const count = Number(await getValue(usersKey())) || 0;
+    pendingUser.rank = String(count + 1);
+    await setValue(userKey(pendingUser.id), packUser(pendingUser));
+    await setValue(profileKey(pendingUser.id), packProfile({ name: pendingUser.name, status: "online", color: "5865f2", custom: "", about: "" }));
+    await setValue(usersKey(), String(pendingUser.rank));
+    setAccount(pendingUser);
+    pendingUser = null;
+    document.getElementById("verifyForm").classList.add("hidden");
+    document.getElementById("authForm").classList.remove("hidden");
+    document.querySelector(".tabs").classList.remove("hidden");
+    await showHome();
+  }
+  async function resendCode() {
+    const errorEl = document.getElementById("authError");
+    if (!pendingUser) { errorEl.textContent = "Log in again, then resend."; return; }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    pendingUser.codeHash = await sha256("code:" + code);
+    await setValue(userKey(pendingUser.id), packUser(pendingUser));
+    await sendVerifyEmail(pendingUser.email, code);
+    errorEl.textContent = "A new code was sent.";
+  }
+  async function registerRoom(code, name) {
+    const raw = await getValue(allKey());
+    const rooms = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    const item = code + ":" + encodeURIComponent(name.slice(0, 16));
+    if (!rooms.some((entry) => entry.startsWith(code + ":"))) rooms.push(item);
+    await setValue(allKey(), rooms.slice(-24).join(","));
+  }
+  async function renderAdmin() {
+    const box = document.getElementById("adminBox");
+    if (!isAdmin()) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
+    document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
+    document.getElementById("ghostHint").classList.toggle("hidden", !ghostMode);
+    const list = document.getElementById("allRooms");
+    list.innerHTML = "";
+    if (!ghostMode) return;
+    const raw = await getValue(allKey());
+    const rooms = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    if (!rooms.length) { list.textContent = "No rooms yet."; return; }
+    for (const entry of rooms) {
+      const [code, name] = entry.split(":");
+      const members = await getValue(membersKey(code));
+      const count = members && members !== "-" ? members.split(",").filter(Boolean).length : 0;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary";
+      button.textContent = decodeURIComponent(name || code) + " · " + code + " · " + count + " people";
+      button.onclick = () => openSavedRoom(code);
+      list.appendChild(button);
+    }
+  }
+  async function toggleGhost() {
+    if (!isAdmin()) return;
+    ghostMode = !ghostMode;
+    await setValue(ghostStoreKey(currentUser.id), ghostMode ? "1" : "0");
+    document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
+    await renderAdmin();
+  }
+  function logout() {
+    localStorage.removeItem(SESSION_KEY);
+    currentUser = null; currentRoom = null;
+    showAuth(); showAuthMode("login");
+  }
+  async function createRoom() {
+    document.getElementById("homeError").textContent = "";
+    const name = document.getElementById("roomName").value.trim().slice(0, 24) || `${currentUser.name}'s room`;
+    try {
+      let code = "";
+      for (let attempt = 0; attempt < 5; attempt++) { code = makeCode(); if (!(await getValue(roomKey(code)))) break; }
+      await setValue(roomKey(code), name);
+      await registerRoom(code, name);
+      await rememberRoom({ code, name });
+      document.getElementById("roomName").value = "";
+      await enterChat({ code, name });
+      addSystemMessage(`Share this code: ${code}`);
+    } catch (err) { document.getElementById("homeError").textContent = err.message; }
+  }
+  function showJoin() {
+    document.getElementById("homeError").textContent = "";
+    home.classList.add("hidden"); roomDock.classList.add("hidden"); joinScreen.classList.remove("hidden");
+    document.getElementById("joinCode").focus();
+  }
+  async function joinRoom() {
+    const code = document.getElementById("joinCode").value.trim().toUpperCase();
+    if (code.length !== 6) { document.getElementById("joinError").textContent = "Room codes are 6 characters."; return; }
+    try {
+      const name = await getValue(roomKey(code));
+      if (!name || name === "-") { document.getElementById("joinError").textContent = "Room not found. Check the code."; return; }
+      await rememberRoom({ code, name });
+      document.getElementById("joinCode").value = "";
+      await enterChat({ code, name });
+    } catch (err) { document.getElementById("joinError").textContent = err.message; }
+  }
+  async function openSavedRoom(code) {
+    try {
+      const name = await getValue(roomKey(code));
+      if (!name || name === "-") { document.getElementById("homeError").textContent = "That room is no longer available."; return; }
+      await enterChat({ code, name });
+    } catch (err) { document.getElementById("homeError").textContent = err.message; }
+  }
+  async function enterChat(room) {
+    currentRoom = room.code;
+    messagesEl.innerHTML = "";
+    const hiddenRaw = await getValue(hideKey(currentUser.id, room.code));
+    hidden = new Set(hiddenRaw && hiddenRaw !== "-" ? hiddenRaw.split(",").filter(Boolean) : []);
+    home.classList.add("hidden"); joinScreen.classList.add("hidden"); auth.classList.add("hidden"); roomDock.classList.add("hidden");
+    chat.classList.remove("hidden");
+    roomTitle.textContent = `${room.name} · Code: ${room.code}`;
+    roomTitle.classList.remove("hidden");
+    document.getElementById("messageInput").focus();
+    if (!ghostMode) await rememberMember(currentUser.name);
+    await showChatPeople();
+    await poll();
+    startPolling();
+  }
+  function startPolling() { stopPolling(); pollTimer = setInterval(poll, POLL_MS); }
+  function stopPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = null; }
+  function setStatus(text, color) { const el = document.getElementById("connectionStatus"); el.textContent = text; el.style.color = color; }
+  function decodeMessage(id, raw) {
+    const parts = String(raw).split("~");
+    if (parts[3] === "gif" || parts[3] === "vote" || parts[3] === "shot") return { id, uid: parts[0], name: parts[1] || "User", createdAt: parts[2] || "", kind: parts[3], text: parts.slice(4).join("~") };
+    return { id, uid: parts[0], name: parts[1] || "User", createdAt: parts[2] || "", kind: "text", text: parts.slice(3).join("~") };
+  }
+  async function poll() {
+    if (!currentRoom) return;
+    try {
+      const index = await getValue(indexKey(currentRoom));
+      const ids = index && index !== "-" ? index.split(",").filter(Boolean) : [];
+      for (const id of ids) {
+        if (hidden.has(id) || messagesEl.querySelector(`[data-id="${id}"]`)) continue;
+        const raw = await getValue(messageKey(currentRoom, id));
+        if (raw) renderMessage(decodeMessage(id, raw));
+      }
+      setStatus(ids.length ? "Live" : "Live · no messages yet", "#3dcc7a");
+      showChatPeople();
+      refreshVoice();
+    } catch (err) { setStatus(err.message || "Could not refresh", "#d33"); }
+  }
+  function normalize(text) { return text.toLowerCase().replace(/[^a-z]/g, ""); }
+  function blocked(text) {
+    const flat = normalize(text);
+    return SLURS.some((word) => flat.includes(word));
+  }
+  function rateLimited() {
+    const now = Date.now();
+    while (sentTimes.length && now - sentTimes[0] > 1000) sentTimes.shift();
+    if (sentTimes.length >= 20) return true;
+    sentTimes.push(now);
+    return false;
+  }
+  async function publish(message) {
+    const kind = message.kind === "text" ? "" : message.kind + "~";
+    const body = `${currentUser.id}~${message.name}~${message.createdAt}~${kind}${message.text}`;
+    await setValue(messageKey(currentRoom, message.id), body);
+    const index = await getValue(indexKey(currentRoom));
+    const ids = index && index !== "-" ? index.split(",").filter(Boolean) : [];
+    ids.push(message.id);
+    let next = ids.join(",");
+    while (next.length > 240 && ids.length > 1) { ids.shift(); next = ids.join(","); }
+    await setValue(indexKey(currentRoom), next);
+  }
+  async function forgetMember(code) {
+    const raw = await getValue(membersKey(code));
+    const names = raw && raw !== "-" ? raw.split(",").filter((item) => item && item !== currentUser.name) : [];
+    await setValue(membersKey(code), names.join(",") || "-");
+    if (names.length) return;
+    await setValue(roomKey(code), "-");
+    const all = await getValue(allKey());
+    const rooms = all && all !== "-" ? all.split(",").filter((entry) => entry && !entry.startsWith(code + ":")) : [];
+    await setValue(allKey(), rooms.join(",") || "-");
+  }
+  async function rememberMember(name) {
+    const clean = String(name || "").replace(/[,@]/g, "").trim();
+    if (!clean || !currentRoom) return;
+    const raw = await getValue(membersKey(currentRoom));
+    const names = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    if (!names.includes(clean)) names.push(clean);
+    await setValue(membersKey(currentRoom), names.slice(-10).join(","));
+  }
+
+  async function roomMembers() {
+    const raw = await getValue(membersKey(currentRoom));
+    return raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+  }
+
+  function hideMentions() {
+    document.getElementById("mentionMenu").classList.add("hidden");
+  }
+
+  async function showMentions() {
+    const input = document.getElementById("messageInput");
+    const match = input.value.slice(0, input.selectionStart).match(/@([^\s@]*)$/);
+    const menu = document.getElementById("mentionMenu");
+    if (!match) { menu.classList.add("hidden"); return; }
+    const query = match[1].toLowerCase();
+    const names = (await roomMembers()).filter((name) => name.toLowerCase().includes(query) && name !== currentUser.name);
+    menu.innerHTML = "";
+    if (!names.length) { menu.classList.add("hidden"); return; }
+    for (const name of names) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "@" + name;
+      button.onclick = () => insertMention(name);
+      menu.appendChild(button);
+    }
+    menu.classList.remove("hidden");
+  }
+
+  function insertMention(name) {
+    const input = document.getElementById("messageInput");
+    const before = input.value.slice(0, input.selectionStart).replace(/@([^\s@]*)$/, "@" + name + " ");
+    const after = input.value.slice(input.selectionStart);
+    input.value = before + after;
+    hideMentions();
+    input.focus();
+  }
+
+  function messageTextNode(text) {
+    const wrap = document.createElement("div");
+    const parts = String(text).split(/(@[^\s@]+)/g);
+    for (const part of parts) {
+      if (part.startsWith("@")) {
+        const mark = document.createElement("span");
+        mark.className = "mention";
+        mark.textContent = part;
+        wrap.appendChild(mark);
+      } else {
+        wrap.appendChild(document.createTextNode(part));
+      }
+    }
+    return wrap;
+  }
+  async function sendMessage() {
+    const input = document.getElementById("messageInput");
+    const text = input.value.trim().slice(0, 140).replace(/~/g, "-");
+    if (!text || !currentRoom) return;
+    if (blocked(text)) { setStatus("Blocked by auto-mod.", "#d33"); return; }
+    if (rateLimited()) { setStatus("Slow down. Max 20 messages a second.", "#d33"); return; }
+    const message = { id: Date.now().toString(36), uid: currentUser.id, name: currentUser.name.replace(/~/g, ""), createdAt: new Date().toISOString(), kind: "text", text };
+    input.value = "";
+    renderMessage(message);
+    try { await publish(message); setStatus("Live", "#3dcc7a"); } catch (err) { setStatus(err.message, "#d33"); }
+    input.focus();
+  }
+  function openVote() {
+    const question = prompt("Vote question?");
+    if (!question) return;
+    const options = prompt("Options, separated by commas");
+    if (!options) return;
+    const choices = options.split(",").map((item) => item.trim()).filter(Boolean).slice(0, 4);
+    if (choices.length < 2) { setStatus("Add at least 2 options.", "#d33"); return; }
+    sendSpecial("vote", [question.replace(/[|~]/g, "-"), ...choices.map((item) => item.replace(/[|~]/g, "-"))].join("|"));
+  }
+  async function sendScreenshot(file) {
+    document.getElementById("shotInput").value = "";
+    if (!file || !currentRoom) return;
+    setStatus("Sending screenshot...", "#faa81a");
+    try {
+      const body = new FormData();
+      body.append("reqtype", "fileupload");
+      body.append("fileToUpload", file, file.name || "screenshot.png");
+      const res = await fetch("https://catbox.moe/user/api.php", { method: "POST", body });
+      const url = (await res.text()).trim();
+      if (!url.startsWith("https://")) throw new Error("Screenshot upload failed.");
+      await sendSpecial("shot", url);
+    } catch (err) {
+      setStatus(err.message || "Screenshot upload failed.", "#d33");
+    }
+  }
+  async function sendSpecial(kind, text) {
+    if (rateLimited()) { setStatus("Slow down. Max 20 messages a second.", "#d33"); return; }
+    const message = { id: Date.now().toString(36), uid: currentUser.id, name: currentUser.name.replace(/~/g, ""), createdAt: new Date().toISOString(), kind, text };
+    renderMessage(message);
+    try { await publish(message); setStatus("Live", "#3dcc7a"); } catch (err) { setStatus(err.message, "#d33"); }
+  }
+  async function castVote(id, choice) {
+    const raw = await getValue(voteKey(id));
+    const votes = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    if (votes.some((item) => item.startsWith(currentUser.id + ":"))) { setStatus("You already voted.", "#faa81a"); return; }
+    votes.push(currentUser.id + ":" + choice);
+    await setValue(voteKey(id), votes.slice(-12).join(","));
+    const node = messagesEl.querySelector(`[data-id="${id}"]`);
+    if (node) node.remove();
+    const rawMessage = await getValue(messageKey(currentRoom, id));
+    if (rawMessage) renderMessage(decodeMessage(id, rawMessage));
+  }
+  async function sendGif(url) {
+    if (!currentRoom) return;
+    if (rateLimited()) { setStatus("Slow down. Max 20 messages a second.", "#d33"); return; }
+    const message = { id: Date.now().toString(36), uid: currentUser.id, name: currentUser.name.replace(/~/g, ""), createdAt: new Date().toISOString(), kind: "gif", text: url };
+    renderMessage(message);
+    document.getElementById("gifPanel").classList.add("hidden");
+    try { await publish(message); setStatus("Live", "#3dcc7a"); } catch (err) { setStatus(err.message, "#d33"); }
+  }
+  let voicePeer = null;
+  let localStream = null;
+  let voiceCalls = new Map();
+  let muted = false;
+  let deafened = false;
+
+  function playJoinSound() {
+    const ctx = new AudioContext();
+    const now = ctx.currentTime;
+    [523, 659, 784].forEach((freq, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.08, now + 0.02 + i * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.28 + i * 0.08);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + i * 0.08);
+      osc.stop(now + 0.32 + i * 0.08);
+    });
+    setTimeout(() => ctx.close(), 800);
+  }
+
+  function setMembers(text) {
+    document.getElementById("vcMembers").textContent = text;
+  }
+
+  function peerIdFor(userId) {
+    return "m" + currentRoom.toLowerCase() + userId;
+  }
+
+  function packVoice(people) {
+    return people.slice(-6).map((person) => person.id + "~" + String(person.name || "User").replace(/[~,]/g, "")).join(",");
+  }
+  function parseVoice(raw) {
+    if (!raw || raw === "-") return [];
+    return raw.split(",").filter(Boolean).map((part) => {
+      const [id, name] = part.split("~");
+      return { id, name: name || "In call" };
+    }).filter((person) => person.id);
+  }
+  function openStage(video, label) {
+    const stage = document.getElementById("stage");
+    const player = document.getElementById("stageVideo");
+    player.srcObject = video.srcObject;
+    player.muted = video.muted;
+    stage.classList.remove("hidden");
+    stage.title = label;
+  }
+  function closeStage() {
+    const player = document.getElementById("stageVideo");
+    player.srcObject = null;
+    document.getElementById("stage").classList.add("hidden");
+  }
+  function addTile(id, stream, label, isLocal) {
+    const bar = document.getElementById("voiceBar");
+    let tile = document.getElementById("tile-" + id);
+    if (!tile) {
+      tile = document.createElement("div");
+      tile.id = "tile-" + id;
+      tile.className = "voice-tile";
+      const video = document.createElement("video");
+      video.autoplay = true;
+      video.playsInline = true;
+      if (isLocal) video.muted = true;
+      const who = document.createElement("div");
+      who.className = "who";
+      const icon = document.createElement("div");
+      icon.className = "icon";
+      icon.textContent = label.replace(" (you)", "").slice(0, 1).toUpperCase();
+      const name = document.createElement("div");
+      name.className = "label";
+      name.textContent = label;
+      who.appendChild(icon);
+      who.appendChild(name);
+      tile.appendChild(video);
+      tile.appendChild(who);
+      bar.appendChild(tile);
+      const uid = isLocal ? currentUser.id : String(id).slice(-12);
+      getValue(picKey(uid)).then((pic) => {
+        if (!pic || !pic.startsWith("https://")) return;
+        icon.textContent = "";
+        const img = document.createElement("img");
+        img.src = pic;
+        img.alt = "";
+        icon.appendChild(img);
+      }).catch(() => {});
+    }
+    const video = tile.querySelector("video");
+    tile.onclick = () => openStage(video, label);
+    if (video.srcObject !== stream) video.srcObject = stream;
+    video.style.display = stream.getVideoTracks().length ? "block" : "none";
+    if (!isLocal && !String(id).startsWith("g")) playJoinSound();
+  }
+
+  async function joinVoice(withVideo) {
+    if (!currentRoom) return;
+    if (voicePeer) await leaveVoice();
+    try {
+      localStream = ghostMode ? new MediaStream() : await navigator.mediaDevices.getUserMedia({ audio: true, video: withVideo });
+    } catch {
+      setStatus("Allow the microphone" + (withVideo ? " and camera" : "") + " to join.", "#d33");
+      return;
+    }
+    muted = false;
+    const id = (ghostMode ? "g" : "m") + currentRoom.toLowerCase() + currentUser.id;
+    voicePeer = new Peer(id);
+    voicePeer.on("open", async () => {
+      if (!ghostMode) {
+        addTile("me", localStream, currentUser.name + " (you)", true);
+        playJoinSound();
+      }
+      const raw = await getValue(voiceKey(currentRoom));
+      const people = parseVoice(raw);
+      if (!ghostMode && !people.some((person) => person.id === id)) people.push({ id, name: currentUser.name });
+      if (!ghostMode) await setValue(voiceKey(currentRoom), packVoice(people));
+      setMembers(people.map((person) => person.name).join(", ") || "No one in voice yet.");
+      connectVoicePeers(people.map((person) => person.id));
+      setStatus(ghostMode ? "Invisible in call" : (withVideo ? "In video call" : "In voice"), "#3dcc7a");
+    });
+    voicePeer.on("call", (call) => answerCall(call));
+    voicePeer.on("error", () => setStatus("Voice could not connect. Try again.", "#d33"));
+  }
+
+  function answerCall(call) {
+    if (String(call.peer).startsWith("g")) return;
+    if (!localStream) return;
+    call.answer(localStream);
+    watchCall(call);
+  }
+
+  function watchCall(call) {
+    voiceCalls.set(call.peer, call);
+    call.on("stream", (stream) => {
+      if (String(call.peer).startsWith("g") || !stream.getTracks().length) return;
+      addTile(call.peer, stream, "In call", false);
+    });
+    call.on("close", () => {
+      voiceCalls.delete(call.peer);
+      document.getElementById("tile-" + call.peer)?.remove();
+    });
+  }
+
+  function connectVoicePeers(ids) {
+    const mine = peerIdFor(currentUser.id);
+    for (const id of ids) {
+      if (id === mine || voiceCalls.has(id)) continue;
+      if (!ghostMode && id >= mine) continue;
+      const call = voicePeer.call(id, localStream || new MediaStream());
+      if (call) watchCall(call);
+    }
+  }
+
+  async function refreshVoice() {
+    if (!voicePeer || !currentRoom) return;
+    try {
+      const raw = await getValue(voiceKey(currentRoom));
+      const people = parseVoice(raw);
+      connectVoicePeers(people.map((person) => person.id));
+      setMembers(people.length ? people.map((person) => person.name).join(", ") : "No one in voice yet.");
+      for (const person of people) {
+        const tile = document.getElementById("tile-" + person.id);
+        if (tile) tile.querySelector(".label").textContent = person.name;
+      }
+    } catch {}
+  }
+
+  function toggleMute() {
+    if (!localStream) return;
+    muted = !muted;
+    localStream.getAudioTracks().forEach((track) => { track.enabled = !muted; });
+    setStatus(muted ? "Muted" : "In voice", muted ? "#faa81a" : "#3dcc7a");
+  }
+
+  function toggleDeafen() {
+    deafened = !deafened;
+    document.querySelectorAll("#voiceBar video").forEach((video) => {
+      if (video.id !== "local-video") video.muted = deafened;
+    });
+    setStatus(deafened ? "Deafened" : "In voice", deafened ? "#faa81a" : "#3dcc7a");
+  }
+
+  async function leaveVoice() {
+    if (voicePeer && currentRoom && !ghostMode) {
+      const mine = peerIdFor(currentUser.id);
+      const raw = await getValue(voiceKey(currentRoom)).catch(() => "");
+      const people = parseVoice(raw).filter((person) => person.id !== mine);
+      await setValue(voiceKey(currentRoom), packVoice(people) || "-").catch(() => {});
+    }
+    voiceCalls.forEach((call) => call.close());
+    voiceCalls.clear();
+    if (localStream) localStream.getTracks().forEach((track) => track.stop());
+    localStream = null;
+    if (voicePeer) voicePeer.destroy();
+    voicePeer = null;
+    const bar = document.getElementById("voiceBar");
+    bar.innerHTML = "";
+    setMembers("No one in voice yet.");
+  }
+
+  async function leaveRoom() {
+    const room = currentRoom;
+    leaveVoice();
+    if (room && !ghostMode) await forgetMember(room);
+    stopPolling(); currentRoom = null;
+    chat.classList.add("hidden"); roomTitle.classList.add("hidden");
+    document.getElementById("gifPanel").classList.add("hidden");
+    showHome();
+  }
+  function renderMessage(message) {
+    if (hidden.has(message.id) || messagesEl.querySelector(`[data-id="${message.id}"]`)) return;
+    const div = document.createElement("div");
+    div.className = "message";
+    div.dataset.id = message.id;
+    if (message.uid === currentUser.id || message.name === currentUser.name) div.classList.add("mine");
+    const name = document.createElement("div");
+    name.className = "name";
+    const who = document.createElement("button");
+    who.type = "button";
+    who.textContent = message.name;
+    who.onclick = () => openProfile(message.uid || "");
+    const time = document.createElement("span");
+    time.className = "time";
+    const date = new Date(message.createdAt);
+    time.textContent = Number.isNaN(date.getTime()) ? "" : " · " + date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "delete-msg";
+    remove.textContent = "Delete";
+    remove.onclick = () => hideMessage(message.id);
+    name.appendChild(who); name.appendChild(time);
+    if (message.uid === currentUser.id) name.appendChild(remove);
+    div.appendChild(name);
+    if (message.kind === "gif" && /^https:\/\//.test(message.text)) {
+      const img = document.createElement("img");
+      img.className = "gif-message";
+      img.src = message.text;
+      img.alt = "GIF";
+      div.appendChild(img);
+    } else if (message.kind === "shot" && /^https:\/\//.test(message.text)) {
+      const img = document.createElement("img");
+      img.className = "shot";
+      img.src = message.text;
+      img.alt = "Screenshot";
+      img.onclick = () => window.open(message.text, "_blank");
+      div.appendChild(img);
+    } else if (message.kind === "vote") {
+      const box = document.createElement("div");
+      box.className = "vote";
+      const [question, ...choices] = message.text.split("|");
+      const title = document.createElement("strong");
+      title.textContent = question;
+      box.appendChild(title);
+      getValue(voteKey(message.id)).then((raw) => {
+        const votes = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+        choices.forEach((choice, index) => {
+          const count = votes.filter((item) => item.endsWith(":" + index)).length;
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = choice + " · " + count;
+          button.onclick = () => castVote(message.id, index);
+          box.appendChild(button);
+        });
+      });
+      div.appendChild(box);
+    } else {
+      div.appendChild(messageTextNode(message.text));
+      if (message.text.toLowerCase().includes("@" + currentUser.name.toLowerCase())) div.classList.add("tagged");
+    }
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+  function addSystemMessage(text) {
+    const div = document.createElement("div");
+    div.className = "system-message";
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+  function goHome() { joinScreen.classList.add("hidden"); showHome(); document.getElementById("joinError").textContent = ""; }
+
+  function packProfile(profile) {
+    return [profile.name, profile.status, profile.color, profile.custom, profile.about].map((part) => String(part || "").replace(/~/g, "")).join("~");
+  }
+  function parseProfile(raw, fallbackName) {
+    const [name, status, color, custom, about] = String(raw || "").split("~");
+    return {
+      name: name || fallbackName || "User",
+      status: ["online", "idle", "dnd", "offline"].includes(status) ? status : "online",
+      color: /^[0-9a-fA-F]{6}$/.test(color || "") ? color : "5865f2",
+      custom: custom || "",
+      about: about || ""
+    };
+  }
+  async function openProfile(uid) {
+    viewingId = uid || currentUser.id;
+    const own = viewingId === currentUser.id;
+    const raw = await getValue(profileKey(viewingId));
+    const profile = parseProfile(raw, own ? currentUser.name : "User");
+    document.getElementById("profileBanner").style.background = "#" + profile.color;
+    const avatar = document.getElementById("profileAvatar");
+    avatar.style.background = "#" + profile.color;
+    avatar.firstChild.textContent = profile.name.slice(0, 1).toUpperCase();
+    const dot = document.getElementById("profileStatus");
+    dot.className = "status-dot " + profile.status;
+    document.getElementById("profileName").textContent = profile.name;
+    const userRaw = await getValue(userKey(viewingId));
+    const viewed = parseUser(viewingId, "", userRaw);
+    document.getElementById("profileRank").textContent = ordinal(viewed && viewed.rank);
+    const pic = await getValue(picKey(viewingId));
+    avatar.querySelectorAll("img").forEach((img) => img.remove());
+    if (pic && pic.startsWith("https://")) {
+      const img = document.createElement("img");
+      img.src = pic;
+      img.alt = "";
+      avatar.insertBefore(img, avatar.firstChild);
+      avatar.firstChild.nextSibling.textContent = "";
+    }
+    document.getElementById("profileCustom").textContent = profile.custom;
+    document.getElementById("banButton").classList.toggle("hidden", !isAdmin() || own);
+    document.getElementById("profileAbout").textContent = profile.about || "No bio yet.";
+    document.getElementById("editProfileButton").classList.toggle("hidden", !own);
+    document.getElementById("profileViewActions").classList.remove("hidden");
+    document.getElementById("profileForm").classList.add("hidden");
+    document.getElementById("profileModal").classList.remove("hidden");
+  }
+  function openOwnProfile() { openProfile(currentUser.id); }
+  function closeProfile() { document.getElementById("profileModal").classList.add("hidden"); }
+  async function editProfile() {
+    const profile = parseProfile(await getValue(profileKey(currentUser.id)), currentUser.name);
+    document.getElementById("profileNameInput").value = profile.name;
+    document.getElementById("profileStatusInput").value = profile.status;
+    document.getElementById("profileColorInput").value = "#" + profile.color;
+    document.getElementById("profileCustomInput").value = profile.custom;
+    document.getElementById("profileAboutInput").value = profile.about;
+    document.getElementById("profileViewActions").classList.add("hidden");
+    document.getElementById("profileForm").classList.remove("hidden");
+  }
+  async function saveProfile(event) {
+    event.preventDefault();
+    const profile = {
+      name: document.getElementById("profileNameInput").value.trim().slice(0, 20) || currentUser.name,
+      status: document.getElementById("profileStatusInput").value,
+      color: document.getElementById("profileColorInput").value.replace("#", ""),
+      custom: document.getElementById("profileCustomInput").value.trim().slice(0, 40),
+      about: document.getElementById("profileAboutInput").value.trim().slice(0, 80)
+    };
+    currentUser.name = profile.name;
+    await setValue(userKey(currentUser.id), packUser(currentUser));
+    await setValue(profileKey(currentUser.id), packProfile(profile));
+    const file = document.getElementById("picInput").files[0];
+    if (file) {
+      const body = new FormData();
+      body.append("reqtype", "fileupload");
+      body.append("fileToUpload", file, file.name || "avatar.png");
+      const res = await fetch("https://catbox.moe/user/api.php", { method: "POST", body });
+      const url = (await res.text()).trim();
+      if (url.startsWith("https://")) await setValue(picKey(currentUser.id), url);
+    }
+    setAccount(currentUser);
+    openProfile(currentUser.id);
+  }
+  async function banViewed() {
+    if (!isAdmin() || !viewingId || viewingId === currentUser.id) return;
+    if (!confirm("Ban this user?")) return;
+    const raw = await getValue(bansKey());
+    const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
+    if (!ids.includes(viewingId)) ids.push(viewingId);
+    await setValue(bansKey(), ids.slice(-20).join(","));
+    closeProfile();
+  }
+  async function showChatPeople() {
+    if (!currentRoom) return;
+    const names = await roomMembers();
+    document.getElementById("chatPeople").textContent = names.length ? "In chat: " + names.join(", ") : "In chat: just you";
+  }
+  const EMOJIS = ["😀","😁","😂","🤣","😊","😍","😘","😎","🤔","😴","😢","😡","👍","👎","👏","🙏","🔥","❤️","🎉","✨","✅","❌","👀","💯"];
+  function togglePlus() {
+    document.getElementById("plusMenu").classList.toggle("hidden");
+  }
+  function pickExtra(kind) {
+    document.getElementById("plusMenu").classList.add("hidden");
+    if (kind === "emoji") { document.getElementById("gifPanel").classList.add("hidden"); toggleEmojis(); return; }
+    if (kind === "gif") { document.getElementById("emojiPanel").classList.add("hidden"); toggleGifs(); return; }
+    if (kind === "vote") openVote();
+    if (kind === "shot") document.getElementById("shotInput").click();
+  }
+  function toggleEmojis() {
+    const panel = document.getElementById("emojiPanel");
+    panel.classList.toggle("hidden");
+    if (panel.childElementCount) return;
+    for (const emoji of EMOJIS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = emoji;
+      button.onclick = () => insertEmoji(emoji);
+      panel.appendChild(button);
+    }
+  }
+  function insertEmoji(emoji) {
+    const input = document.getElementById("messageInput");
+    const start = input.selectionStart || input.value.length;
+    input.value = input.value.slice(0, start) + emoji + input.value.slice(start);
+    input.focus();
+  }
+  function toggleGifs() {
+    const panel = document.getElementById("gifPanel");
+    panel.classList.toggle("hidden");
+    if (!panel.classList.contains("hidden") && !document.getElementById("gifTags").childElementCount) buildGifTags();
+  }
+  function buildGifTags() {
+    const tags = document.getElementById("gifTags");
+    for (const tag of GIF_TAGS) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = tag;
+      button.onclick = () => loadGifs(tag);
+      tags.appendChild(button);
+    }
+    loadGifs("wave");
+  }
+  async function loadGifs(tag) {
+    const grid = document.getElementById("gifGrid");
+    grid.innerHTML = "Loading...";
+    const urls = [];
+    for (let i = 0; i < 6; i++) {
+      try {
+        const res = await fetch(GIF_API + tag);
+        const data = await res.json();
+        if (data.url && !urls.includes(data.url)) urls.push(data.url);
+      } catch {}
+    }
+    grid.innerHTML = "";
+    for (const url of urls) {
+      const button = document.createElement("button");
+      button.type = "button";
+      const img = document.createElement("img");
+      img.src = url;
+      img.alt = tag;
+      button.appendChild(img);
+      button.onclick = () => sendGif(url);
+      grid.appendChild(button);
+    }
+    if (!urls.length) grid.textContent = "No GIFs found.";
+  }
+  async function boot() {
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    let session = null;
+    try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); } catch {}
+    if (!session?.id || !session.email) { showAuthMode("login"); return; }
+    try {
+      const user = parseUser(session.id, session.email, await getValue(userKey(session.id)));
+      if (!user) { showAuthMode("login"); return; }
+      setAccount(user);
+      const theme = await getValue(themeKey(user.id));
+      if (theme === "dark" || theme === "light") applyTheme(theme);
+      await showHome();
+    } catch { showAuthMode("login"); }
+  }
+  document.getElementById("messageInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") { hideMentions(); sendMessage(); }
+    if (event.key === "Escape") hideMentions();
+  });
+  document.getElementById("messageInput").addEventListener("paste", (event) => {
+    const file = [...(event.clipboardData?.files || [])].find((item) => item.type.startsWith("image/"));
+    if (file) { event.preventDefault(); sendScreenshot(file); }
+  });
+  document.getElementById("joinCode").addEventListener("keydown", (event) => { if (event.key === "Enter") joinRoom(); });
+  showAuthMode("login");
+  boot();
+</script>
+</body>
+</html>

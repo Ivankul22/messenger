@@ -137,14 +137,6 @@
     .about { color: var(--muted); margin: 8px 0; white-space: pre-wrap; }
     .support-note { text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin: 6px auto; max-width: 420px; background: var(--dock); }
     .support-note .time { display: block; margin: 2px 0 6px; }
-    .admin-room { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px auto; max-width: 420px; background: var(--dock); }
-    .admin-room strong { display: block; }
-    .admin-room .room-actions { display: flex; gap: 8px; margin-top: 8px; }
-    .user-card { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin: 8px auto; max-width: 420px; background: var(--dock); }
-    .user-top { display: flex; align-items: center; gap: 8px; }
-    .user-top strong { flex: 1; }
-    .presence { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-    .user-meta { color: var(--muted); font-size: 13px; margin-top: 4px; }
     @media (max-width: 600px) {
       .message { max-width: 88%; }
       #accountBar, #themeButton { position: static; }
@@ -161,15 +153,11 @@
     <h2>Messenger</h2>
     <div id="accountBar" class="hidden">
       <button id="accountName" class="small" type="button" onclick="openOwnProfile()">Account</button>
+      <button class="small" type="button" onclick="openSupport()">Support</button>
       <button class="small" type="button" onclick="logout()">Log out</button>
     </div>
     <div id="roomTitle" class="hidden"></div>
   </header>
-  <div id="appTabs" class="tabs hidden">
-    <button type="button" id="homeTab" class="active" onclick="showHome()">Home</button>
-    <button type="button" id="usersTab" class="hidden" onclick="showUsers()">Users</button>
-    <button type="button" id="supportTab" onclick="showSupport()">Support</button>
-  </div>
 
   <div id="auth" class="screen">
     <h1 id="authTitle">Log in</h1>
@@ -190,27 +178,12 @@
       <button id="authSubmit" type="submit">Log in</button>
     </form>
     <div id="authError" class="error"></div>
-    <button id="forgotButton" class="secondary" type="button" onclick="showReset()">Forgot password</button>
     <form id="verifyForm" class="hidden" onsubmit="submitVerify(event)">
-      <p class="lede" id="verifyLede">Enter the 6-digit code from your email. It expires in 15 minutes.</p>
-      <input id="verifyCode" inputmode="numeric" maxlength="6" placeholder="Verification code" autocomplete="one-time-code">
+      <p class="lede">Enter the 6-digit code sent to your email.</p>
+      <input id="verifyCode" inputmode="numeric" maxlength="6" placeholder="Verification code" required>
       <br>
-      <button id="verifySubmit" type="submit">Verify email</button>
+      <button type="submit">Verify email</button>
       <button class="secondary" type="button" onclick="resendCode()">Resend code</button>
-      <button class="secondary" type="button" onclick="cancelAuthExtra()">Back</button>
-    </form>
-    <form id="resetForm" class="hidden" onsubmit="submitReset(event)">
-      <p class="lede" id="resetLede">Enter the email on your account.</p>
-      <input id="resetEmail" type="email" placeholder="Email" autocomplete="email">
-      <input id="resetCode" class="hidden" inputmode="numeric" maxlength="6" placeholder="Code from email" autocomplete="one-time-code">
-      <br class="reset-extra hidden">
-      <input id="resetPassword" class="hidden" type="password" minlength="6" placeholder="New password" autocomplete="new-password">
-      <br class="reset-extra hidden">
-      <input id="resetPassword2" class="hidden" type="password" minlength="6" placeholder="Confirm new password" autocomplete="new-password">
-      <br>
-      <button id="resetSubmit" type="submit">Send code</button>
-      <button class="secondary" type="button" onclick="cancelAuthExtra()">Back</button>
-      <div id="resetError" class="error"></div>
     </form>
   </div>
 
@@ -221,33 +194,16 @@
     <br>
     <button type="button" onclick="createRoom()">Create Room</button>
     <button type="button" onclick="showJoin()">Join with Code</button>
+    <button class="secondary" type="button" onclick="openSupport()">Support</button>
     <div id="homeError" class="error"></div>
     <p id="userCount" class="lede">Registered users: …</p>
     <div id="adminBox" class="hidden">
       <h2>Admin</h2>
       <button id="ghostButton" type="button" onclick="toggleGhost()">Invisible mode: off</button>
-      <p class="lede">Rooms on this site, with who is in them. Invisible mode lets you open a room without appearing.</p>
-      <p id="ghostHint" class="lede hidden">Invisible mode is on.</p>
+      <p class="lede">Every room created on this site. Invisible mode lets you open them and join calls without appearing.</p>
+      <p id="ghostHint" class="lede hidden">Invisible mode is on. Every created room is listed with how many people have opened it.</p>
       <div id="allRooms"></div>
-    </div>
-  </div>
-
-  <div id="usersScreen" class="screen hidden">
-    <h1>Users</h1>
-    <p class="lede">Every account, with who is online right now.</p>
-    <div id="userList"></div>
-  </div>
-
-  <div id="supportScreen" class="screen hidden">
-    <h1>Support</h1>
-    <p class="lede">Write to the admin. This stays on the page.</p>
-    <form onsubmit="sendSupport(event)">
-      <textarea id="supportText" maxlength="100" placeholder="Write your message"></textarea>
-      <div id="supportError" class="error"></div>
-      <button type="submit">Send</button>
-    </form>
-    <div id="supportInboxWrap" class="hidden">
-      <h2>Inbox</h2>
+      <h3>Support inbox</h3>
       <div id="supportInbox"></div>
     </div>
   </div>
@@ -323,7 +279,6 @@
       <div id="profileViewActions">
         <button type="button" class="secondary" onclick="closeProfile()">Close</button>
         <button id="editProfileButton" type="button" onclick="editProfile()">Edit profile</button>
-        <button id="deleteAccountButton" class="danger hidden" type="button" onclick="deleteAccount()">Delete account</button>
         <button id="banButton" class="danger hidden" type="button" onclick="banViewed()">Ban user</button>
       </div>
       <form id="profileForm" class="hidden" onsubmit="saveProfile(event)">
@@ -347,6 +302,20 @@
 </div>
 
 <div id="stage" class="hidden"><video id="stageVideo" autoplay playsinline></video><button type="button" onclick="closeStage()">Close</button></div>
+<div id="supportModal" class="modal hidden" onclick="if (event.target.id === 'supportModal') closeSupport()">
+  <div class="card">
+    <div class="card-body" style="padding-top:16px">
+      <h2>Support</h2>
+      <p class="lede">This goes to the admin. They can read it on their account.</p>
+      <form onsubmit="sendSupport(event)">
+        <textarea id="supportText" maxlength="100" placeholder="Write your message"></textarea>
+        <div id="supportError" class="error"></div>
+        <button type="submit">Send</button>
+        <button class="secondary" type="button" onclick="closeSupport()">Close</button>
+      </form>
+    </div>
+  </div>
+</div>
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
   const API = "https://api.keyval.org";
@@ -376,11 +345,6 @@
   const roomTitle = document.getElementById("roomTitle");
   const accountBar = document.getElementById("accountBar");
   const accountName = document.getElementById("accountName");
-  const appTabs = document.getElementById("appTabs");
-  const usersScreen = document.getElementById("usersScreen");
-  const supportScreen = document.getElementById("supportScreen");
-  let presenceTimer = null;
-  let usersTimer = null;
 
   function applyTheme(theme) {
     const next = theme === "dark" ? "dark" : "light";
@@ -432,10 +396,12 @@
     const data = await res.json().catch(() => ({}));
     if (data.status && data.status !== "SUCCESS") throw new Error("Could not save.");
   }
+  let pendingUser = null;
   function namesKey() { return KEY_PREFIX + "names"; }
   function parseUser(id, email, raw) {
     if (!raw || raw === "-") return null;
     const [salt, passwordHash, name, verified, codeHash, rank] = String(raw).split("~");
+    if (!salt || !passwordHash) return null;
     if (!salt || salt === "-" || !passwordHash || passwordHash.length < 32) return null;
     return { id, email, salt, passwordHash, name: name || email.split("@")[0], verified: verified === "0" ? false : true, codeHash: codeHash || "", rank: rank || "" };
   }
@@ -521,10 +487,7 @@
     currentUser = user;
     accountName.textContent = user.name + (isAdmin() ? " · admin" : "");
     accountBar.classList.remove("hidden");
-    appTabs.classList.remove("hidden");
-    document.getElementById("usersTab").classList.toggle("hidden", !isAdmin());
     localStorage.setItem(SESSION_KEY, JSON.stringify({ id: user.id, email: user.email }));
-    startPresence();
   }
   function showAuthMode(mode) {
     const signup = mode === "signup";
@@ -539,95 +502,24 @@
     document.getElementById("authSubmit").textContent = signup ? "Create account" : "Log in";
     document.getElementById("authForm").dataset.mode = mode;
     document.getElementById("authError").textContent = "";
-    document.getElementById("authForm").classList.remove("hidden");
-    document.querySelector("#auth .tabs").classList.remove("hidden");
-    document.getElementById("verifyForm").classList.add("hidden");
-    document.getElementById("resetForm").classList.add("hidden");
-    document.getElementById("forgotButton").classList.toggle("hidden", signup);
   }
   function showAuth() {
     stopPolling();
-    stopPresence();
-    stopUsersRefresh();
     home.classList.add("hidden"); joinScreen.classList.add("hidden"); chat.classList.add("hidden");
-    usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden");
     roomDock.classList.add("hidden"); roomTitle.classList.add("hidden"); accountBar.classList.add("hidden");
-    appTabs.classList.add("hidden");
     auth.classList.remove("hidden");
   }
-  function markTab(name) {
-    document.getElementById("homeTab").classList.toggle("active", name === "home");
-    document.getElementById("usersTab").classList.toggle("active", name === "users");
-    document.getElementById("supportTab").classList.toggle("active", name === "support");
-  }
-  async function leaveChatQuiet() {
-    if (!currentRoom) return;
-    const room = currentRoom;
-    await leaveVoice();
-    if (!ghostMode) await forgetMember(room);
-    stopPolling();
-    currentRoom = null;
-    chat.classList.add("hidden");
-    roomTitle.classList.add("hidden");
-    document.getElementById("gifPanel").classList.add("hidden");
-  }
   async function showHome() {
-    await leaveChatQuiet();
-    stopUsersRefresh();
+    stopPolling();
     auth.classList.add("hidden"); joinScreen.classList.add("hidden"); chat.classList.add("hidden");
-    usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden");
     roomTitle.classList.add("hidden"); home.classList.remove("hidden"); roomDock.classList.remove("hidden");
-    accountBar.classList.remove("hidden"); appTabs.classList.remove("hidden");
-    markTab("home");
+    accountBar.classList.remove("hidden");
     try {
       renderRoomDock(await loadRooms());
       const count = Number(await getValue(usersKey())) || 0;
       document.getElementById("userCount").textContent = "Registered users: " + count;
       await renderAdmin();
     } catch (err) { document.getElementById("homeError").textContent = err.message; }
-  }
-  let pendingUser = null;
-  let resetAccount = null;
-  const CODE_MS = 15 * 60 * 1000;
-  function codeExpiryKey(id) { return KEY_PREFIX + "c" + id; }
-  function resetKey(id) { return KEY_PREFIX + "z" + id; }
-  function makePin() { return String(Math.floor(100000 + Math.random() * 900000)); }
-  async function sendMail(email, subject, message) {
-    const res = await fetch("https://formsubmit.co/ajax/" + encodeURIComponent(email), {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ _subject: subject, _captcha: "false", _template: "box", message })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (String(data.success) === "true") return;
-    const msg = data.message || "Could not send the email.";
-    if (/activation/i.test(msg)) throw new Error("Check your inbox for an email from FormSubmit and click Activate Form. Then press Resend code.");
-    throw new Error(msg);
-  }
-  function showVerify(user) {
-    pendingUser = user;
-    document.getElementById("authForm").classList.add("hidden");
-    document.getElementById("forgotButton").classList.add("hidden");
-    document.getElementById("resetForm").classList.add("hidden");
-    document.querySelector("#auth .tabs").classList.add("hidden");
-    document.getElementById("verifyForm").classList.remove("hidden");
-    document.getElementById("authTitle").textContent = "Verify email";
-    document.getElementById("authLede").textContent = "We sent a code to " + user.email + ".";
-    document.getElementById("verifyCode").focus();
-  }
-  function cancelAuthExtra() {
-    pendingUser = null;
-    resetAccount = null;
-    showAuthMode("login");
-  }
-  async function issueVerifyCode(user) {
-    const code = makePin();
-    user.codeHash = await sha256("code:" + code);
-    user.codeExpires = Date.now() + CODE_MS;
-    await setValue(userKey(user.id), packUser(user));
-    await setValue(codeExpiryKey(user.id), String(user.codeExpires));
-    await sendMail(user.email, "Messenger verification code", "Your Messenger verification code is " + code + ". It expires in 15 minutes.");
-    return code;
   }
   async function submitAuth(event) {
     event.preventDefault();
@@ -645,28 +537,29 @@
       const id = await userIdFromEmail(email);
       const existing = parseUser(id, email, await getValue(userKey(id)));
       if (mode === "signup") {
-        if (existing && existing.verified) { errorEl.textContent = "An account with that email already exists."; return; }
+        if (existing) { errorEl.textContent = "An account with that email already exists."; return; }
         const display = (name || email.split("@")[0]).slice(0, 20);
-        if (await nameTaken(display)) { errorEl.textContent = "That display name is already used."; return; }
-        const user = existing || { id, email, salt: randomSalt(), name: display, verified: false, codeHash: "", rank: "" };
-        user.email = email;
-        user.name = display;
-        user.verified = false;
-        if (!existing) user.salt = randomSalt();
+        const taken = await nameTaken(display);
+        if (taken) { errorEl.textContent = "That display name is already used."; return; }
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        const user = { id, email, salt: randomSalt(), name: display, verified: false, codeHash: await sha256("code:" + code) };
+        const user = { id, email, salt: randomSalt(), name: display, verified: true, codeHash: "" };
         user.passwordHash = await sha256(user.salt + ":" + password);
+        const count = Number(await getValue(usersKey())) || 0;
+        user.rank = String(count + 1);
         await setValue(userKey(id), packUser(user));
-        try {
-          await issueVerifyCode(user);
-        } catch (err) {
-          if (!/Activate Form/i.test(err.message)) {
-            await setValue(userKey(id), "-");
-            throw err;
-          }
-          showVerify(user);
-          errorEl.textContent = err.message;
-          return;
-        }
-        showVerify(user);
+        await setValue(profileKey(id), packProfile({ name: display, status: "online", color: "5865f2", custom: "", about: "" }));
+        await reserveName(display);
+        await sendVerifyEmail(email, code);
+        pendingUser = user;
+        showVerify();
+        document.getElementById("authNotice")?.remove();
+        errorEl.textContent = "";
+        await setValue(usersKey(), String(user.rank));
+        setAccount(user);
+        const theme = await getValue(themeKey(id));
+        if (theme === "dark" || theme === "light") applyTheme(theme);
+        await showHome();
         return;
       }
       if (!existing || await sha256(existing.salt + ":" + password) !== existing.passwordHash) {
@@ -678,10 +571,13 @@
         return;
       }
       if (!existing.verified) {
-        existing.codeExpires = Number(await getValue(codeExpiryKey(existing.id))) || 0;
-        showVerify(existing);
-        errorEl.textContent = existing.codeHash ? "Enter the code from your email, or resend it." : "Verify your email before logging in.";
+        pendingUser = existing;
+        showVerify();
+        errorEl.textContent = "Verify your email before logging in. Use Resend code if you need a new one.";
         return;
+        existing.verified = true;
+        existing.codeHash = "";
+        await setValue(userKey(id), packUser(existing));
       }
       setAccount(existing);
       const theme = await getValue(themeKey(id));
@@ -689,245 +585,19 @@
       await showHome();
     } catch (err) { errorEl.textContent = err.message; }
   }
-  async function submitVerify(event) {
-    event.preventDefault();
-    const errorEl = document.getElementById("authError");
-    errorEl.textContent = "";
-    if (!pendingUser) { errorEl.textContent = "Sign up again to get a code."; return; }
-    const entered = document.getElementById("verifyCode").value.trim();
-    const expires = Number(pendingUser.codeExpires || await getValue(codeExpiryKey(pendingUser.id))) || 0;
-    if (!expires || Date.now() > expires) { errorEl.textContent = "That code expired. Press Resend code."; return; }
-    if (await sha256("code:" + entered) !== pendingUser.codeHash) { errorEl.textContent = "Wrong verification code."; return; }
-    pendingUser.verified = true;
-    pendingUser.codeHash = "";
-    if (!pendingUser.rank) {
-      if (await nameTaken(pendingUser.name)) { errorEl.textContent = "That display name was just taken. Use Back and sign up with another name."; return; }
-      const count = Number(await getValue(usersKey())) || 0;
-      pendingUser.rank = String(count + 1);
-      await reserveName(pendingUser.name);
-      await setValue(usersKey(), String(pendingUser.rank));
-      await setValue(profileKey(pendingUser.id), packProfile({ name: pendingUser.name, status: "online", color: "5865f2", custom: "", about: "" }));
-    }
-    await setValue(userKey(pendingUser.id), packUser(pendingUser));
-    await setValue(codeExpiryKey(pendingUser.id), "-");
-    const user = pendingUser;
-    pendingUser = null;
-    document.getElementById("verifyCode").value = "";
-    setAccount(user);
-    showAuthMode("login");
-    await showHome();
-  }
-  async function resendCode() {
-    const errorEl = document.getElementById("authError");
-    errorEl.textContent = "";
-    if (!pendingUser) { errorEl.textContent = "Log in again, then resend."; return; }
-    try {
-      await issueVerifyCode(pendingUser);
-      errorEl.textContent = "A new code was sent.";
-    } catch (err) { errorEl.textContent = err.message; }
-  }
-  function showReset() {
-    resetAccount = null;
+  function showVerify() {
     document.getElementById("authForm").classList.add("hidden");
-    document.getElementById("forgotButton").classList.add("hidden");
-    document.getElementById("verifyForm").classList.add("hidden");
-    document.querySelector("#auth .tabs").classList.add("hidden");
-    document.getElementById("resetForm").classList.remove("hidden");
-    document.getElementById("resetEmail").classList.remove("hidden");
-    document.getElementById("resetCode").classList.add("hidden");
-    document.getElementById("resetPassword").classList.add("hidden");
-    document.getElementById("resetPassword2").classList.add("hidden");
-    document.querySelectorAll(".reset-extra").forEach((el) => el.classList.add("hidden"));
-    document.getElementById("resetSubmit").textContent = "Send code";
-    document.getElementById("resetLede").textContent = "Enter the email on your account.";
-    document.getElementById("authTitle").textContent = "Reset password";
-    document.getElementById("authLede").textContent = "We email a code. It expires in 15 minutes.";
-    document.getElementById("resetError").textContent = "";
-    document.getElementById("authError").textContent = "";
-  }
-  async function submitReset(event) {
-    event.preventDefault();
-    const errorEl = document.getElementById("resetError");
-    errorEl.textContent = "";
-    try {
-      if (!resetAccount) {
-        const email = document.getElementById("resetEmail").value.trim().toLowerCase();
-        const id = await userIdFromEmail(email);
-        const existing = parseUser(id, email, await getValue(userKey(id)));
-        if (!existing) { errorEl.textContent = "No account uses that email."; return; }
-        const code = makePin();
-        const expires = Date.now() + CODE_MS;
-        await setValue(resetKey(id), (await sha256("reset:" + code)) + "~" + expires);
-        await sendMail(email, "Messenger password reset", "Your Messenger password reset code is " + code + ". It expires in 15 minutes.");
-        resetAccount = existing;
-        document.getElementById("resetEmail").classList.add("hidden");
-        document.getElementById("resetCode").classList.remove("hidden");
-        document.getElementById("resetPassword").classList.remove("hidden");
-        document.getElementById("resetPassword2").classList.remove("hidden");
-        document.querySelectorAll(".reset-extra").forEach((el) => el.classList.remove("hidden"));
-        document.getElementById("resetSubmit").textContent = "Save new password";
-        document.getElementById("resetLede").textContent = "Enter the code sent to " + email + " and a new password.";
-        return;
-      }
-      const entered = document.getElementById("resetCode").value.trim();
-      const next = document.getElementById("resetPassword").value;
-      const again = document.getElementById("resetPassword2").value;
-      if (next.length < 6) { errorEl.textContent = "Use at least 6 characters."; return; }
-      if (next !== again) { errorEl.textContent = "Passwords do not match."; return; }
-      const raw = await getValue(resetKey(resetAccount.id));
-      const [hash, expires] = String(raw || "").split("~");
-      if (!hash || !expires || Date.now() > Number(expires)) {
-        resetAccount = null;
-        showReset();
-        document.getElementById("resetError").textContent = "That code expired. Start again.";
-        return;
-      }
-      if (await sha256("reset:" + entered) !== hash) { errorEl.textContent = "Wrong reset code."; return; }
-      resetAccount.passwordHash = await sha256(resetAccount.salt + ":" + next);
-      await setValue(userKey(resetAccount.id), packUser(resetAccount));
-      await setValue(resetKey(resetAccount.id), "-");
-      resetAccount = null;
-      document.getElementById("resetCode").value = "";
-      document.getElementById("resetPassword").value = "";
-      document.getElementById("resetPassword2").value = "";
-      showAuthMode("login");
-      document.getElementById("authError").textContent = "Password updated. Log in with the new one.";
-    } catch (err) { errorEl.textContent = err.message; }
-  }
-  async function releaseName(name) {
-    const raw = await getValue(namesKey());
-    const names = raw && raw !== "-" ? raw.split(",").filter((item) => item && item !== String(name || "").toLowerCase()) : [];
-    await setValue(namesKey(), names.join(",") || "-");
-  }
-  async function deleteAccount() {
-    if (!currentUser) return;
-    const typed = prompt("Type DELETE to remove " + currentUser.email + ". This cannot be undone.");
-    if (typed !== "DELETE") return;
-    const id = currentUser.id;
-    const name = currentUser.name;
-    stopPresence();
-    await setValue(userKey(id), "-");
-    await setValue(profileKey(id), "-");
-    await setValue(dirKey(id), "-");
-    await setValue(picKey(id), "-");
-    await setValue(listKey(id), "-");
-    await setValue(themeKey(id), "-");
-    await setValue(codeExpiryKey(id), "-");
-    await setValue(resetKey(id), "-");
-    await setValue(ghostStoreKey(id), "-");
-    await releaseName(name);
-    const raw = await getValue(userListKey());
-    const ids = raw && raw !== "-" ? raw.split(",").filter((item) => item && item !== id) : [];
-    await setValue(userListKey(), ids.join(",") || "-");
-    closeProfile();
-    localStorage.removeItem(SESSION_KEY);
-    currentUser = null;
-    currentRoom = null;
-    showAuth();
-    showAuthMode("login");
-    document.getElementById("authError").textContent = "Account deleted.";
-  }
+    document.getElementById("verifyForm").classList.remove("hidden");
+    document.querySelector(".tabs").classList.add("hidden");
+    document.getElementById("authTitle").textContent = "Verify email";
   function supportIndexKey() { return KEY_PREFIX + "sup"; }
   function supportItemKey(id) { return KEY_PREFIX + "s" + id; }
-  function userListKey() { return KEY_PREFIX + "ulist"; }
-  function dirKey(id) { return KEY_PREFIX + "d" + id; }
-  function stopPresence() { if (presenceTimer) clearInterval(presenceTimer); presenceTimer = null; }
-  function startPresence() { stopPresence(); touchPresence(); presenceTimer = setInterval(touchPresence, 20000); }
-  function stopUsersRefresh() { if (usersTimer) clearInterval(usersTimer); usersTimer = null; }
-  async function touchPresence() {
-    if (!currentUser) return;
-    if (isAdmin()) ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
-    if (ghostMode) return;
-    const status = currentUser.status || "online";
-    const body = [currentUser.name.replace(/~/g, "").slice(0, 20), currentUser.email.slice(0, 60), currentUser.rank || "", String(Date.now()), status].join("~");
-    await setValue(dirKey(currentUser.id), body);
-    const raw = await getValue(userListKey());
-    const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
-    if (!ids.includes(currentUser.id)) {
-      ids.push(currentUser.id);
-      let next = ids.join(",");
-      while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
-      await setValue(userListKey(), next);
-    }
-  }
-  async function showSupport() {
-    await leaveChatQuiet();
-    stopUsersRefresh();
-    auth.classList.add("hidden"); home.classList.add("hidden"); joinScreen.classList.add("hidden");
-    usersScreen.classList.add("hidden"); chat.classList.add("hidden"); roomDock.classList.add("hidden");
-    roomTitle.classList.add("hidden");
-    supportScreen.classList.remove("hidden");
-    appTabs.classList.remove("hidden");
-    markTab("support");
+  function openSupport() {
     document.getElementById("supportError").textContent = "";
-    document.getElementById("supportInboxWrap").classList.toggle("hidden", !isAdmin());
-    if (isAdmin()) await renderSupportInbox();
+    document.getElementById("supportModal").classList.remove("hidden");
+    document.getElementById("supportText").focus();
   }
-  async function showUsers() {
-    if (!isAdmin()) { await showHome(); return; }
-    await leaveChatQuiet();
-    auth.classList.add("hidden"); home.classList.add("hidden"); joinScreen.classList.add("hidden");
-    supportScreen.classList.add("hidden"); chat.classList.add("hidden"); roomDock.classList.add("hidden");
-    roomTitle.classList.add("hidden");
-    usersScreen.classList.remove("hidden");
-    appTabs.classList.remove("hidden");
-    markTab("users");
-    await renderUsers();
-    stopUsersRefresh();
-    usersTimer = setInterval(() => { renderUsers().catch(() => {}); }, 15000);
-  }
-  async function renderUsers() {
-    const list = document.getElementById("userList");
-    const raw = await getValue(userListKey());
-    const ids = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
-    const bans = ((await getValue(bansKey())) || "").split(",").filter((item) => item && item !== "-");
-    list.innerHTML = "";
-    if (!ids.length) {
-      const empty = document.createElement("p");
-      empty.className = "lede";
-      empty.textContent = "No one has signed in since the user list started.";
-      list.appendChild(empty);
-      return;
-    }
-    for (const id of ids) {
-      const dirRaw = await getValue(dirKey(id));
-      const profile = parseProfile(await getValue(profileKey(id)), "");
-      const stored = parseUser(id, "", await getValue(userKey(id)));
-      const [dirName, email, rank, seen, dirStatus] = String(dirRaw || "").split("~");
-      const name = profile.name && profile.name !== "User" ? profile.name : (dirName || (stored && stored.name) || "User");
-      const seenMs = Number(seen) || 0;
-      const chosen = dirStatus || profile.status || "online";
-      const live = seenMs > 0 && Date.now() - seenMs < 50000 && chosen !== "offline";
-      const label = !live ? "Offline" : chosen === "idle" ? "Idle" : chosen === "dnd" ? "Do not disturb" : "Online";
-      const card = document.createElement("div");
-      card.className = "user-card";
-      const top = document.createElement("div");
-      top.className = "user-top";
-      const dot = document.createElement("span");
-      dot.className = "presence " + (!live ? "offline" : chosen === "idle" ? "idle" : chosen === "dnd" ? "dnd" : "online");
-      const who = document.createElement("strong");
-      who.textContent = name;
-      const state = document.createElement("span");
-      state.textContent = label;
-      top.appendChild(dot); top.appendChild(who); top.appendChild(state);
-      card.appendChild(top);
-      const lines = [
-        email || "No email saved yet",
-        ordinal(rank || (stored && stored.rank)),
-        seenMs ? "Last seen " + new Date(seenMs).toLocaleString() : "Last seen unknown"
-      ];
-      if (profile.custom) lines.push(profile.custom);
-      if (profile.about) lines.push(profile.about);
-      if (bans.includes(id)) lines.push("Banned");
-      for (const line of lines) {
-        const meta = document.createElement("div");
-        meta.className = "user-meta";
-        meta.textContent = line;
-        card.appendChild(meta);
-      }
-      list.appendChild(card);
-    }
-  }
+  function closeSupport() { document.getElementById("supportModal").classList.add("hidden"); }
   async function sendSupport(event) {
     event.preventDefault();
     const errorEl = document.getElementById("supportError");
@@ -946,7 +616,7 @@
       while (next.length > 220 && ids.length > 1) { ids.shift(); next = ids.join(","); }
       await setValue(supportIndexKey(), next);
       document.getElementById("supportText").value = "";
-      errorEl.textContent = "Sent.";
+      closeSupport();
       if (isAdmin()) await renderSupportInbox();
     } catch (err) { errorEl.textContent = err.message; }
   }
@@ -995,6 +665,51 @@
     names.push(name.toLowerCase());
     await setValue(namesKey(), names.slice(-18).join(","));
   }
+  async function sendVerifyEmail(email, code) {
+    const res = await fetch("https://formsubmit.co/ajax/" + encodeURIComponent(email), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        _subject: "Messenger verification code",
+        _captcha: "false",
+        message: "Your Messenger verification code is " + code + ". It expires when you verify."
+      })
+    });
+    if (!res.ok) throw new Error("Could not send the verification email.");
+  }
+  async function submitVerify(event) {
+    event.preventDefault();
+    const errorEl = document.getElementById("authError");
+    errorEl.textContent = "";
+    if (!pendingUser) { errorEl.textContent = "Sign up again to get a code."; return; }
+    const entered = document.getElementById("verifyCode").value.trim();
+    if (await sha256("code:" + entered) !== pendingUser.codeHash) {
+      errorEl.textContent = "Wrong verification code.";
+      return;
+    }
+    pendingUser.verified = true;
+    pendingUser.codeHash = "";
+    const count = Number(await getValue(usersKey())) || 0;
+    pendingUser.rank = String(count + 1);
+    await setValue(userKey(pendingUser.id), packUser(pendingUser));
+    await setValue(profileKey(pendingUser.id), packProfile({ name: pendingUser.name, status: "online", color: "5865f2", custom: "", about: "" }));
+    await setValue(usersKey(), String(pendingUser.rank));
+    setAccount(pendingUser);
+    pendingUser = null;
+    document.getElementById("verifyForm").classList.add("hidden");
+    document.getElementById("authForm").classList.remove("hidden");
+    document.querySelector(".tabs").classList.remove("hidden");
+    await showHome();
+  }
+  async function resendCode() {
+    const errorEl = document.getElementById("authError");
+    if (!pendingUser) { errorEl.textContent = "Log in again, then resend."; return; }
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    pendingUser.codeHash = await sha256("code:" + code);
+    await setValue(userKey(pendingUser.id), packUser(pendingUser));
+    await sendVerifyEmail(pendingUser.email, code);
+    errorEl.textContent = "A new code was sent.";
+  }
   async function registerRoom(code, name) {
     const raw = await getValue(allKey());
     const rooms = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
@@ -1009,56 +724,23 @@
     ghostMode = (await getValue(ghostStoreKey(currentUser.id))) === "1";
     document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
     document.getElementById("ghostHint").classList.toggle("hidden", !ghostMode);
-    await renderAdminRooms();
-  }
-  async function renderAdminRooms() {
+    await renderSupportInbox();
     const list = document.getElementById("allRooms");
     list.innerHTML = "";
+    if (!ghostMode) return;
     const raw = await getValue(allKey());
     const rooms = raw && raw !== "-" ? raw.split(",").filter(Boolean) : [];
-    if (!rooms.length) {
-      const empty = document.createElement("p");
-      empty.className = "lede";
-      empty.textContent = "No rooms yet.";
-      list.appendChild(empty);
-      return;
-    }
-    for (const entry of rooms.slice().reverse()) {
+    if (!rooms.length) { list.textContent = "No rooms yet."; return; }
+    for (const entry of rooms) {
       const [code, name] = entry.split(":");
-      const membersRaw = await getValue(membersKey(code));
-      const members = membersRaw && membersRaw !== "-" ? membersRaw.split(",").filter(Boolean) : [];
-      const card = document.createElement("div");
-      card.className = "admin-room";
-      const title = document.createElement("strong");
-      title.textContent = decodeURIComponent(name || code);
-      const meta = document.createElement("div");
-      meta.className = "user-meta";
-      meta.textContent = members.length ? members.length + " in room · " + members.join(", ") : "Empty";
-      const codeLine = document.createElement("div");
-      codeLine.className = "room-code";
-      codeLine.textContent = code;
-      const actions = document.createElement("div");
-      actions.className = "room-actions";
-      const open = document.createElement("button");
-      open.type = "button";
-      open.className = "small";
-      open.textContent = "Open";
-      open.onclick = () => openSavedRoom(code);
-      const copy = document.createElement("button");
-      copy.type = "button";
-      copy.className = "secondary small";
-      copy.textContent = "Copy code";
-      copy.onclick = async () => {
-        try { await navigator.clipboard.writeText(code); copy.textContent = "Copied"; }
-        catch { copy.textContent = code; }
-      };
-      actions.appendChild(open);
-      actions.appendChild(copy);
-      card.appendChild(title);
-      card.appendChild(codeLine);
-      card.appendChild(meta);
-      card.appendChild(actions);
-      list.appendChild(card);
+      const members = await getValue(membersKey(code));
+      const count = members && members !== "-" ? members.split(",").filter(Boolean).length : 0;
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "secondary";
+      button.textContent = decodeURIComponent(name || code) + " · " + code + " · " + count + " people";
+      button.onclick = () => openSavedRoom(code);
+      list.appendChild(button);
     }
   }
   async function toggleGhost() {
@@ -1068,12 +750,7 @@
     document.getElementById("ghostButton").textContent = "Invisible mode: " + (ghostMode ? "on" : "off");
     await renderAdmin();
   }
-  async function logout() {
-    stopPresence();
-    if (currentUser && !ghostMode) {
-      const body = [currentUser.name.replace(/~/g, "").slice(0, 20), currentUser.email.slice(0, 60), currentUser.rank || "", "0", "offline"].join("~");
-      await setValue(dirKey(currentUser.id), body).catch(() => {});
-    }
+  function logout() {
     localStorage.removeItem(SESSION_KEY);
     currentUser = null; currentRoom = null;
     showAuth(); showAuthMode("login");
@@ -1094,8 +771,7 @@
   }
   function showJoin() {
     document.getElementById("homeError").textContent = "";
-    home.classList.add("hidden"); usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden"); roomDock.classList.add("hidden"); joinScreen.classList.remove("hidden");
-    markTab("home");
+    home.classList.add("hidden"); roomDock.classList.add("hidden"); joinScreen.classList.remove("hidden");
     document.getElementById("joinCode").focus();
   }
   async function joinRoom() {
@@ -1121,9 +797,7 @@
     messagesEl.innerHTML = "";
     const hiddenRaw = await getValue(hideKey(currentUser.id, room.code));
     hidden = new Set(hiddenRaw && hiddenRaw !== "-" ? hiddenRaw.split(",").filter(Boolean) : []);
-    home.classList.add("hidden"); joinScreen.classList.add("hidden"); auth.classList.add("hidden");
-    usersScreen.classList.add("hidden"); supportScreen.classList.add("hidden"); roomDock.classList.add("hidden");
-    stopUsersRefresh();
+    home.classList.add("hidden"); joinScreen.classList.add("hidden"); auth.classList.add("hidden"); roomDock.classList.add("hidden");
     chat.classList.remove("hidden");
     roomTitle.textContent = `${room.name} · Code: ${room.code}`;
     roomTitle.classList.remove("hidden");
@@ -1636,7 +1310,6 @@
     document.getElementById("banButton").classList.toggle("hidden", !isAdmin() || own);
     document.getElementById("profileAbout").textContent = profile.about || "No bio yet.";
     document.getElementById("editProfileButton").classList.toggle("hidden", !own);
-    document.getElementById("deleteAccountButton").classList.toggle("hidden", !own);
     document.getElementById("profileViewActions").classList.remove("hidden");
     document.getElementById("profileForm").classList.add("hidden");
     document.getElementById("profileModal").classList.remove("hidden");
@@ -1663,7 +1336,6 @@
       about: document.getElementById("profileAboutInput").value.trim().slice(0, 80)
     };
     currentUser.name = profile.name;
-    currentUser.status = profile.status;
     await setValue(userKey(currentUser.id), packUser(currentUser));
     await setValue(profileKey(currentUser.id), packProfile(profile));
     const file = document.getElementById("picInput").files[0];
@@ -1676,7 +1348,6 @@
       if (url.startsWith("https://")) await setValue(picKey(currentUser.id), url);
     }
     setAccount(currentUser);
-    await touchPresence();
     openProfile(currentUser.id);
   }
   async function banViewed() {
@@ -1769,7 +1440,7 @@
     if (!session?.id || !session.email) { showAuthMode("login"); return; }
     try {
       const user = parseUser(session.id, session.email, await getValue(userKey(session.id)));
-      if (!user || !user.verified) { showAuthMode("login"); return; }
+      if (!user) { showAuthMode("login"); return; }
       setAccount(user);
       const theme = await getValue(themeKey(user.id));
       if (theme === "dark" || theme === "light") applyTheme(theme);
